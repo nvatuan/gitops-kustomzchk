@@ -764,225 +764,65 @@ Note: Caching optimizations are deferred for future implementation.
 
 ### Component Interaction Flow
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                         CLI Entry Point                              │
-│                     (cmd/gitops-kustomz/main.go)                    │
-│                                                                       │
-│  Parses flags: --service, --environments, --policies-path,          │
-│                --templates-path, --run-mode, etc.                    │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │   Choose Run Mode     │
-                    └───┬───────────────┬───┘
-                        │               │
-            ┌───────────▼─────┐    ┌───▼────────────┐
-            │  GitHub Runner  │    │  Local Runner  │
-            └───────┬─────────┘    └───┬────────────┘
-                    │                  │
-                    │  Both inherit from RunnerBase
-                    │
-        ┌───────────▼──────────────────▼───────────┐
-        │          RunnerBase                      │
-        │  ┌──────────────────────────────────┐   │
-        │  │ 1. Build Manifests               │   │
-        │  │    - Kustomize Builder           │   │
-        │  │    - Build base & head           │   │
-        │  └────────────┬─────────────────────┘   │
-        │               │                          │
-        │  ┌────────────▼─────────────────────┐   │
-        │  │ 2. Diff Manifests                │   │
-        │  │    - Differ (pkg/diff)           │   │
-        │  │    - Line count calculation      │   │
-        │  │    - (GitHub: artifact upload    │   │
-        │  │      if >10k chars)              │   │
-        │  └────────────┬─────────────────────┘   │
-        │               │                          │
-        │  ┌────────────▼─────────────────────┐   │
-        │  │ 3. Evaluate Policies             │   │
-        │  │    - Policy Evaluator            │   │
-        │  │    - Load compliance-config.yaml │   │
-        │  │    - Run conftest on manifests   │   │
-        │  │    - Check enforcement levels    │   │
-        │  └────────────┬─────────────────────┘   │
-        └───────────────┼──────────────────────────┘
-                        │
-        ┌───────────────▼──────────────────────────┐
-        │          Generate Report Data            │
-        │    (models.ReportData structure)         │
-        │                                           │
-        │  - ManifestChanges: map[env]EnvDiff      │
-        │  - PolicyEvaluation: PolicyReport        │
-        │  - Metadata: Service, Timestamp, etc.    │
-        └───────────────┬──────────────────────────┘
-                        │
-            ┌───────────▼───────────┐
-            │   Render Templates    │
-            │  (template.Renderer)  │
-            │                       │
-            │  Uses:                │
-            │  - comment.md.tmpl    │
-            │  - diff.md.tmpl       │
-            │  - policy.md.tmpl     │
-            └───────┬───────────────┘
-                    │
-        ┌───────────▼───────────────────────┐
-        │       Output/Publish              │
-        │                                   │
-        │  GitHub Mode:                     │
-        │    → Create/Update PR Comment     │
-        │    → Upload artifacts (if needed) │
-        │                                   │
-        │  Local Mode:                      │
-        │    → Write report.md              │
-        │    → Write report.json            │
-        │    → Write performance.json       │
-        └───────────────────────────────────┘
+```mermaid
+flowchart TD
+    CLI["CLI Entry Point<br/>(cmd/gitops-kustomz/main.go)<br/><br/>Parse flags:<br/>--service, --environments<br/>--policies-path, --templates-path<br/>--run-mode, etc."]
+    
+    CLI --> Mode{Choose Run Mode}
+    
+    Mode -->|github| GHRunner[GitHub Runner]
+    Mode -->|local| LocalRunner[Local Runner]
+    
+    GHRunner --> Base[RunnerBase]
+    LocalRunner --> Base
+    
+    Base --> Build["1. Build Manifests<br/>- Kustomize Builder<br/>- Build base & head"]
+    Build --> Diff["2. Diff Manifests<br/>- Differ (pkg/diff)<br/>- Line count calculation<br/>- GitHub: artifact upload if >10k chars"]
+    Diff --> Policy["3. Evaluate Policies<br/>- Policy Evaluator<br/>- Load compliance-config.yaml<br/>- Run conftest on manifests<br/>- Check enforcement levels"]
+    
+    Policy --> ReportData["Generate Report Data<br/>(models.ReportData)<br/><br/>- ManifestChanges: map[env]EnvDiff<br/>- PolicyEvaluation: PolicyReport<br/>- Metadata: Service, Timestamp"]
+    
+    ReportData --> Render["Render Templates<br/>(template.Renderer)<br/><br/>Uses:<br/>- comment.md.tmpl<br/>- diff.md.tmpl<br/>- policy.md.tmpl"]
+    
+    Render --> Output{Output/Publish}
+    
+    Output -->|GitHub Mode| GHOutput["→ Create/Update PR Comment<br/>→ Upload artifacts (if needed)"]
+    Output -->|Local Mode| LocalOutput["→ Write report.md<br/>→ Write report.json<br/>→ Write performance.json"]
 ```
 
 ### Policy Evaluation Flow
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    compliance-config.yaml                            │
-│                                                                       │
-│  policies:                                                           │
-│    service-high-availability:                                        │
-│      name: "Service High Availability"                               │
-│      externalLink: "https://docs.example.com/policies/ha"           │
-│      filePath: "ha.rego"                                             │
-│      enforcement:                                                    │
-│        inEffectAfter: 2025-10-01T00:00:00Z                          │
-│        isWarningAfter: 2025-11-01T00:00:00Z                         │
-│        isBlockingAfter: 2025-12-01T00:00:00Z                        │
-│        override:                                                     │
-│          comment: "/override-ha"                                     │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │  Policy Evaluator     │
-                    │  (pkg/policy)         │
-                    └───────────┬───────────┘
-                                │
-                    ┌───────────▼────────────────────────┐
-                    │  For each environment:             │
-                    │                                    │
-                    │  1. Load built manifest            │
-                    │  2. Run conftest with policy       │
-                    │  3. Parse conftest output          │
-                    │  4. Check current enforcement      │
-                    │     level (time-based)             │
-                    │  5. Check for override comments    │
-                    │  6. Generate policy result         │
-                    └───────────┬────────────────────────┘
-                                │
-                ┌───────────────▼───────────────────┐
-                │      Policy Result Matrix         │
-                │                                   │
-                │  Environment: stg                 │
-                │    - BlockingPolicies: []         │
-                │    - WarningPolicies: [...]       │
-                │    - RecommendPolicies: [...]     │
-                │    - OverriddenPolicies: []       │
-                │    - NotInEffectPolicies: []      │
-                │                                   │
-                │  Environment: prod                │
-                │    - BlockingPolicies: []         │
-                │    - WarningPolicies: [...]       │
-                │    - RecommendPolicies: [...]     │
-                │    - OverriddenPolicies: []       │
-                │    - NotInEffectPolicies: []      │
-                └───────────────┬───────────────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │   Policy Summary      │
-                    │                       │
-                    │  Per Environment:     │
-                    │    - TotalSuccess     │
-                    │    - TotalFailed      │
-                    │    - TotalOmitted     │
-                    │    - BlockingFailed   │
-                    │    - WarningFailed    │
-                    │    - RecommendFailed  │
-                    └───────────────────────┘
+```mermaid
+flowchart TD
+    Config["compliance-config.yaml<br/><br/>policies:<br/>  service-high-availability:<br/>    name: 'Service High Availability'<br/>    externalLink: 'https://docs.example.com/policies/ha'<br/>    filePath: 'ha.rego'<br/>    enforcement:<br/>      inEffectAfter: 2025-10-01T00:00:00Z<br/>      isWarningAfter: 2025-11-01T00:00:00Z<br/>      isBlockingAfter: 2025-12-01T00:00:00Z<br/>      override:<br/>        comment: '/override-ha'"]
+    
+    Config --> Evaluator[Policy Evaluator<br/>(pkg/policy)]
+    
+    Evaluator --> Process["For each environment:<br/><br/>1. Load built manifest<br/>2. Run conftest with policy<br/>3. Parse conftest output<br/>4. Check current enforcement level (time-based)<br/>5. Check for override comments<br/>6. Generate policy result"]
+    
+    Process --> Matrix["Policy Result Matrix<br/><br/>Environment: stg<br/>  - BlockingPolicies: []<br/>  - WarningPolicies: [...]<br/>  - RecommendPolicies: [...]<br/>  - OverriddenPolicies: []<br/>  - NotInEffectPolicies: []<br/><br/>Environment: prod<br/>  - BlockingPolicies: []<br/>  - WarningPolicies: [...]<br/>  - RecommendPolicies: [...]<br/>  - OverriddenPolicies: []<br/>  - NotInEffectPolicies: []"]
+    
+    Matrix --> Summary["Policy Summary<br/><br/>Per Environment:<br/>  - TotalSuccess<br/>  - TotalFailed<br/>  - TotalOmitted<br/>  - BlockingFailed<br/>  - WarningFailed<br/>  - RecommendFailed"]
 ```
 
 ### Template Rendering Flow
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      ReportData (Go Struct)                          │
-│                                                                       │
-│  type ReportData struct {                                            │
-│    Service          string                                           │
-│    Environments     []string                                         │
-│    BaseCommit       string                                           │
-│    HeadCommit       string                                           │
-│    Timestamp        time.Time                                        │
-│    ManifestChanges  map[string]EnvironmentDiff                       │
-│    PolicyEvaluation PolicyReport                                     │
-│  }                                                                    │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │  Template Renderer    │
-                    │  (pkg/template)       │
-                    └───────────┬───────────┘
-                                │
-                ┌───────────────▼───────────────────┐
-                │   Load & Parse Templates          │
-                │                                   │
-                │   1. comment.md.tmpl (main)       │
-                │   2. diff.md.tmpl                 │
-                │   3. policy.md.tmpl               │
-                └───────────┬───────────────────────┘
-                            │
-            ┌───────────────▼───────────────┐
-            │    Execute Templates          │
-            │                               │
-            │  Available Variables:         │
-            │  {{.Service}}                 │
-            │  {{.Environments}}            │
-            │  {{.ManifestChanges}}         │
-            │  {{.PolicyEvaluation}}        │
-            │  {{.Timestamp}}               │
-            │  etc.                         │
-            └───────────┬───────────────────┘
-                        │
-        ┌───────────────▼───────────────────────┐
-        │      Template Functions               │
-        │                                       │
-        │  {{range .Environments}}              │
-        │    → Iterate over environments        │
-        │                                       │
-        │  {{if gt .LineCount 0}}               │
-        │    → Conditional rendering            │
-        │                                       │
-        │  {{$diff := index .ManifestChanges    │
-        │      $env}}                           │
-        │    → Variable assignment              │
-        │                                       │
-        │  {{.Timestamp.Format "2006-01-02"}}   │
-        │    → Time formatting                  │
-        └───────────┬───────────────────────────┘
-                    │
-        ┌───────────▼───────────────────────────┐
-        │     Rendered Markdown Output          │
-        │                                       │
-        │  # 🔍 GitOps Policy Check: my-app     │
-        │                                       │
-        │  ## 📊 Manifest Changes               │
-        │  ### stg                              │
-        │  ```diff                              │
-        │  ...                                  │
-        │  ```                                  │
-        │                                       │
-        │  ## 🛡️ Policy Evaluation             │
-        │  | Policy | Level | stg | prod |      │
-        │  |--------|-------|-----|------|      │
-        │  | [HA](link) | 🚫 | ✅ | ✅ |        │
-        └───────────────────────────────────────┘
+```mermaid
+flowchart TD
+    ReportData["ReportData (Go Struct)<br/><br/>type ReportData struct {<br/>  Service          string<br/>  Environments     []string<br/>  BaseCommit       string<br/>  HeadCommit       string<br/>  Timestamp        time.Time<br/>  ManifestChanges  map[string]EnvironmentDiff<br/>  PolicyEvaluation PolicyReport<br/>}"]
+    
+    ReportData --> Renderer[Template Renderer<br/>(pkg/template)]
+    
+    Renderer --> LoadTemplates["Load & Parse Templates<br/><br/>1. comment.md.tmpl (main)<br/>2. diff.md.tmpl<br/>3. policy.md.tmpl"]
+    
+    LoadTemplates --> Execute["Execute Templates<br/><br/>Available Variables:<br/>{{.Service}}<br/>{{.Environments}}<br/>{{.ManifestChanges}}<br/>{{.PolicyEvaluation}}<br/>{{.Timestamp}}<br/>etc."]
+    
+    Execute --> Functions["Template Functions<br/><br/>{{range .Environments}}<br/>  → Iterate over environments<br/><br/>{{if gt .LineCount 0}}<br/>  → Conditional rendering<br/><br/>{{$diff := index .ManifestChanges $env}}<br/>  → Variable assignment<br/><br/>{{.Timestamp.Format '2006-01-02'}}<br/>  → Time formatting"]
+    
+    Functions --> Markdown["Rendered Markdown Output<br/><br/># 🔍 GitOps Policy Check: my-app<br/><br/>## 📊 Manifest Changes<br/>### stg<br/>```diff<br/>...<br/>```<br/><br/>## 🛡️ Policy Evaluation<br/>| Policy | Level | stg | prod |<br/>|--------|-------|-----|------|<br/>| [HA](link) | 🚫 | ✅ | ✅ |"]
+    
+    style ReportData fill:#e1f5ff
+    style Markdown fill:#d4edda
 ```
 
 ## Template Variable Reference
