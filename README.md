@@ -16,8 +16,13 @@ GitOps policy enforcement tool for Kubernetes manifests managed with Kustomize.
 - 🔍 **Kustomize Build & Diff**: Builds manifests from base and head branches, generates clear diffs
 - 📋 **Policy Enforcement**: Evaluates OPA policies with configurable enforcement levels (RECOMMEND/WARNING/BLOCK)
 - 💬 **GitHub Integration**: Posts detailed policy reports and diffs as PR comments
+- 📎 **Smart Diff Handling**: Automatically uploads large diffs (>10k chars) as GitHub artifacts with links in PR comments
+- 🔗 **Policy Documentation**: Add external links to policies for easy access to documentation
+- 📊 **Enhanced Policy Matrix**: View all policies with enforcement levels in a comprehensive table
 - ⚡ **Fast**: Parallel policy evaluation with goroutines, <2s build time target
 - 🧪 **Local Testing**: Test policies locally without GitHub PR
+- 📈 **Performance Tracing**: Optional performance reports with detailed timing for each step
+- 🧹 **Clean Diffs**: Kustomize warnings filtered out from diff output
 
 ## Quick Start
 
@@ -44,7 +49,8 @@ gitops-kustomz \
   --service my-app \
   --environments stg,prod \
   --manifests-path ./services \
-  --policies-path ./policies
+  --policies-path ./policies \
+  --enable-export-performance-report true  # Optional: export performance metrics
 
 # Local testing
 gitops-kustomz \
@@ -54,7 +60,9 @@ gitops-kustomz \
   --lc-before-manifests-path ./before/services \
   --lc-after-manifests-path ./after/services \
   --policies-path ./policies \
-  --lc-output-dir ./output
+  --output-dir ./output \
+  --enable-export-report true \
+  --enable-export-performance-report true  # Optional: export performance metrics
 ```
 
 ## 📁 Project Structure
@@ -64,16 +72,21 @@ gitops-kustomz \
 ├── src/
 │   ├── cmd/gitops-kustomz/    # CLI entry point
 │   ├── pkg/                   # Core packages
-│   │   ├── config/            # Configuration types
 │   │   ├── diff/              # Manifest diffing
-│   │   ├── github/            # GitHub API client
+│   │   ├── github/            # GitHub API client & sparse checkout
 │   │   ├── kustomize/         # Kustomize builder
-│   │   ├── policy/            # Policy evaluation (OPA)
-│   │   └── template/          # Markdown templating
-│   ├── internal/              # Internal utilities
+│   │   ├── models/            # Data models for reports & configs
+│   │   ├── policy/            # Policy evaluation (OPA/Conftest)
+│   │   ├── template/          # Markdown templating
+│   │   └── trace/             # Performance tracing with OpenTelemetry
+│   ├── internal/
+│   │   └── runner/            # GitHub & Local runners
 │   └── templates/             # Default markdown templates
 ├── sample/                    # Example policies & manifests
-├── test/                      # Test data
+│   ├── github-actions/        # Sample workflows
+│   ├── k8s-manifests/         # Sample Kubernetes manifests
+│   └── policies/              # Sample OPA policies
+├── test/                      # Test data & System Integration Tests
 ├── go.mod                     # Go module definition
 └── Makefile                   # Build automation
 ```
@@ -103,6 +116,52 @@ The tool supports custom markdown templates for GitHub comments. Templates use G
 ```
 
 See [docs/TEMPLATE_VARIABLES.md](./docs/TEMPLATE_VARIABLES.md) for complete reference.
+
+## Policy Configuration
+
+Policies are defined in `compliance-config.yaml` with support for:
+
+- **Enforcement Levels**: BLOCKING, WARNING, RECOMMEND
+- **Time-based Enforcement**: Policies can change levels over time
+- **Override Support**: Allow policy bypass via PR comments
+- **External Links**: Link to policy documentation for easy reference
+
+### Example Policy Configuration
+
+```yaml
+policies:
+  service-high-availability:
+    name: Service High Availability
+    description: Ensures deployments meet HA criteria
+    type: opa
+    filePath: ha.rego
+    externalLink: https://docs.example.com/policies/high-availability  # Optional
+    
+    enforcement:
+      inEffectAfter: 2025-10-01T00:00:00Z
+      isWarningAfter: 2025-11-01T00:00:00Z
+      isBlockingAfter: 2025-12-01T00:00:00Z
+      override:
+        comment: "/override-ha"
+```
+
+### Policy Report Features
+
+- **Policy Evaluation Matrix**: Comprehensive table showing all policies with enforcement levels
+- **Detailed Failure Reports**: Organized by enforcement level (BLOCKING, WARNING, RECOMMEND)
+- **External Links**: Clickable policy names in the matrix that link to documentation
+- **Pass/Fail Status**: Clear indicators for each environment
+
+## Recent Updates
+
+### v0.1.0+ Features
+
+- **Smart Diff Artifacts** (#3): Diffs >10k chars automatically uploaded as GitHub artifacts
+- **System Integration Tests** (#2): Automated testing for local mode with baseline comparison
+- **Clean Diff Output** (#4): Kustomize stderr warnings no longer pollute diff output
+- **Enhanced Policy Matrix** (#5): Added Level column and external link support
+- **Policy Detail Improvements**: Only failed policies shown in details section
+- **Performance Tracing**: Optional OpenTelemetry-based performance reports
 
 ## Documentation
 
@@ -154,6 +213,9 @@ make lint
 
 # Local testing mode
 make run-local
+
+# System Integration Test (compares output with baseline)
+make sit-test-local
 ```
 
 ## License
