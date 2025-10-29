@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/models"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/models"
 	"gopkg.in/yaml.v2"
 
 	log "github.com/sirupsen/logrus"

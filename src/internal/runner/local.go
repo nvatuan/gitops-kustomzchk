@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/diff"
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/kustomize"
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/models"
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/policy"
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/template"
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/trace"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/diff"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/kustomize"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/models"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/policy"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/template"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/trace"
 )
 
 type RunnerLocal struct {

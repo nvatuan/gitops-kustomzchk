@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gh-nvat/gitops-kustomz/src/internal/runner"
+	"github.com/gh-nvat/gitops-kustomzchk/src/internal/runner"
 	"github.com/spf13/cobra"
 )
 
@@ -27,9 +27,9 @@ func newRootCmd() *cobra.Command {
 	opts := &runner.Options{}
 
 	cmd := &cobra.Command{
-		Use:   "gitops-kustomz",
+		Use:   "gitops-kustomzchk",
 		Short: "GitOps policy enforcement tool for Kubernetes manifests",
-		Long: `gitops-kustomz enforces policy compliance for k8s GitOps repositories via GitHub PR checks.
+		Long: `gitops-kustomzchk enforces policy compliance for k8s GitOps repositories via GitHub PR checks.
 It builds kustomize manifests, diffs them, evaluates OPA policies, and posts detailed comments on PRs.`,
 		Version: fmt.Sprintf("%s (built: %s)", Version, BuildTime),
 		RunE: func(cmd *cobra.Command, args []string) error {

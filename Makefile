@@ -1,9 +1,9 @@
 .PHONY: build test lint clean install run-local build-release
 
 # Binary name and paths
-BINARY_NAME=gitops-kustomz
+BINARY_NAME=gitops-kustomzchk
 BIN_DIR=bin
-MAIN_PATH=./src/cmd/gitops-kustomz
+MAIN_PATH=./src/cmd/gitops-kustomzchk
 
 # Build variables
 VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")

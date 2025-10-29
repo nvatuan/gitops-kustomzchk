@@ -1,4 +1,4 @@
-module github.com/gh-nvat/gitops-kustomz
+module github.com/gh-nvat/gitops-kustomzchk
 
 go 1.24.0
 

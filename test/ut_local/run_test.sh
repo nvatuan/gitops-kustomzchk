@@ -10,7 +10,7 @@ NC='\033[0m' # No Color
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-BIN_PATH="$PROJECT_ROOT/bin/gitops-kustomz"
+BIN_PATH="$PROJECT_ROOT/bin/gitops-kustomzchk"
 OUTPUT_DIR="$SCRIPT_DIR/output"
 JURY_OUTPUT_DIR="$SCRIPT_DIR/jury_output"
 
@@ -28,7 +28,7 @@ cd "$PROJECT_ROOT"
 make build > /dev/null 2>&1
 
 # Run the binary
-echo "🚀 Running gitops-kustomz in local mode..."
+echo "🚀 Running gitops-kustomzchk in local mode..."
 "$BIN_PATH" --run-mode local \
     --service my-app \
     --environments stg,prod \

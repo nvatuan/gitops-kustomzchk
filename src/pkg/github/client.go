@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/models"
-	"github.com/gh-nvat/gitops-kustomz/src/pkg/template"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/models"
+	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/template"
 	"github.com/google/go-github/v66/github"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
