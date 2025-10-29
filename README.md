@@ -1,7 +1,7 @@
-# gitops-kustomz
+# gitops-kustomzchk
 
 <p align="center">
-  <img src="docs/gitops-kustomz-rec.png" alt="gitops-kustomz logo" width="200"/>
+  <img src="docs/gitops-kustomzchk.png" alt="gitops-kustomzchk logo" width="200"/>
 </p>
 
 GitOps policy enforcement tool for Kubernetes manifests managed with Kustomize.
@@ -165,8 +165,8 @@ policies:
 ## Documentation
 
 - [sample/github-actions/README.md](./sample/github-actions/README.md) - **GitHub Actions setup guide**
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - High-level architecture and use cases
-- [docs/DESIGN.md](./docs/DESIGN.md) - Detailed design and implementation specs
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE_v0.2.md) - High-level architecture and use cases
+- [docs/DESIGN.md](./docs/DESIGN_sonnet.md) - Detailed design and implementation specs
 - [docs/TEMPLATE_VARIABLES.md](./docs/TEMPLATE_VARIABLES.md) - **Template variables and functions reference**
 - [LOCAL_TESTING.md](./LOCAL_TESTING.md) - Local testing guide
 

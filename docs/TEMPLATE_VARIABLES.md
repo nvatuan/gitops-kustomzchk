@@ -1,206 +1,322 @@
 # Template Variables Reference
 
-This document provides a comprehensive reference for all available variables and functions in gitops-kustomz templates.
+> **Source:** See `src/pkg/models/reportdata.go` for the complete data structure definitions.
 
-## Overview
+## Template Files
 
-The tool uses `MultiEnvCommentData` as the main data structure for template rendering. Templates support Go's `text/template` syntax with custom functions.
-
-## Template Files Structure
-
-The tool expects three template files in the templates directory:
+Templates receive `ReportData` struct as root context:
 
 - `comment.md.tmpl` - Main comment template
-- `diff.md.tmpl` - Diff section template (included in comment)
-- `policy.md.tmpl` - Policy section template (included in comment)
+- `diff.md.tmpl` - Diff section template  
+- `policy.md.tmpl` - Policy evaluation template
 
-All templates receive the same `MultiEnvCommentData` structure as their data context.
-
-## Top-Level Variables
-
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `.Service` | `string` | Service name | `"my-app"` |
-| `.Environments` | `[]string` | List of environments | `["stg", "prod"]` |
-| `.BaseCommit` | `string` | Base branch commit SHA (short) | `"abc1234"` |
-| `.HeadCommit` | `string` | Head branch commit SHA (short) | `"def5678"` |
-| `.Timestamp` | `time.Time` | When the check ran | `2025-10-21T00:01:04Z` |
-| `.EnvironmentDiffs` | `[]EnvironmentDiff` | Diff data per environment | See Environment Diffs section |
-| `.MultiEnvPolicyReport` | `MultiEnvPolicyReport` | Policy results across environments | See Policy Report section |
-
-## Environment Diffs (`.EnvironmentDiffs`)
-
-For each environment diff:
-
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `.Environment` | `string` | Environment name | `"stg"` |
-| `.HasChanges` | `bool` | Whether any changes detected | `true` |
-| `.Content` | `string` | Raw unified diff content | `"--- base\n+++ head\n..."` |
-| `.LineCount` | `int` | Total number of changed lines | `10` |
-| `.AddedLineCount` | `int` | Number of added lines | `5` |
-| `.DeletedLineCount` | `int` | Number of deleted lines | `5` |
-
-## Multi-Environment Policy Report (`.MultiEnvPolicyReport`)
-
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `.Environments` | `[]string` | List of environments | `["stg", "prod"]` |
-| `.Policies` | `[]MultiEnvPolicyDetail` | Policy details across environments | See Policy Details section |
-| `.Summary` | `map[string]EnvSummary` | Summary per environment | See Environment Summary section |
-
-## Policy Details (`.MultiEnvPolicyReport.Policies`)
-
-For each policy:
-
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `.Name` | `string` | Policy name | `"Service High Availability"` |
-| `.Description` | `string` | Policy description | `"Ensures deployments meeting high availability criteria"` |
-| `.Level` | `string` | Enforcement level | `"RECOMMEND"`, `"WARNING"`, `"BLOCK"`, `"DISABLED"` |
-| `.Results` | `map[string]EnvPolicyResult` | Results per environment | See Environment Policy Results section |
-
-## Environment Policy Results (`.Results[env]`)
-
-For each environment's policy result:
-
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `.Status` | `string` | Policy status | `"PASS"`, `"FAIL"`, `"ERROR"` |
-| `.Violations` | `[]string` | List of violation messages | `["Deployment 'my-app' must have at least 2 replicas"]` |
-| `.Error` | `string` | Error message if Status == "ERROR" | `"Policy evaluation failed: ..."` |
-| `.Overridden` | `bool` | Whether override comment was found | `false` |
-
-## Environment Summary (`.Summary[env]`)
-
-For each environment's summary:
-
-| Variable | Type | Description | Example |
-|----------|------|-------------|---------|
-| `.TotalPolicies` | `int` | Total number of policies | `2` |
-| `.PassedPolicies` | `int` | Number of passed policies | `2` |
-| `.FailedPolicies` | `int` | Number of failed policies | `0` |
-| `.ErroredPolicies` | `int` | Number of errored policies | `0` |
-| `.BlockingFailures` | `int` | Number of blocking failures | `0` |
-| `.WarningFailures` | `int` | Number of warning failures | `0` |
-| `.RecommendFailures` | `int` | Number of recommend failures | `0` |
-
-## Available Template Functions
-
-| Function | Signature | Description | Example |
-|----------|-----------|-------------|---------|
-| `gt` | `func(a, b int) bool` | Returns true if a > b | `{{if gt .FailedPolicies 0}}` |
-
-## Template Examples
-
-### Basic Service Information
+## Root Variables
 
 ```go
-# 🔍 GitOps Policy Check: {{.Service}}
-
-**Timestamp:** {{.Timestamp.Format "2006-01-02 15:04:05 UTC"}}  
-**Base:** `{{.BaseCommit}}` → **Head:** `{{.HeadCommit}}`  
-**Environments:** {{range $i, $env := .Environments}}{{if $i}}, {{end}}`{{$env}}`{{end}}
+.Service          string              // Service name (e.g., "my-app")
+.Timestamp        time.Time           // When check ran
+.BaseCommit       string              // Base branch SHA (short)
+.HeadCommit       string              // Head branch SHA (short)
+.Environments     []string            // Environment list (e.g., ["stg", "prod"])
+.ManifestChanges  map[string]EnvironmentDiff
+.PolicyEvaluation PolicyEvaluation
 ```
 
-### Environment Iteration
+## ManifestChanges (map[string]EnvironmentDiff)
+
+Access via: `{{$diff := index .ManifestChanges "stg"}}`
 
 ```go
-{{range .Environments}}
-  Environment: {{.}}
-{{end}}
+.LineCount          int       // Total changed lines
+.AddedLineCount     int       // Added lines count
+.DeletedLineCount   int       // Deleted lines count
+.ContentType        string    // "text" or "ext_ghartifact"
+.Content            string    // Diff text OR artifact URL
+.ContentGHFilePath  *string   // GitHub artifact file path (if applicable)
 ```
 
-### Diff Section
+## PolicyEvaluation
 
 ```go
-{{range .EnvironmentDiffs}}
-### {{.Environment}}
-
-{{if .HasChanges}}
-**Lines changed:** {{.LineCount}}
-
-<details>
-<summary>Click to expand {{.Environment}} diff</summary>
-
-```diff
-{{.Content}}
+.EnvironmentSummary  map[string]EnvironmentSummaryEnv
+.PolicyMatrix        map[string]PolicyMatrix
 ```
 
-</details>
-{{else}}
-✅ No changes detected.
-{{end}}
-{{end}}
-```
+### EnvironmentSummary (map[string]EnvironmentSummaryEnv)
 
-### Policy Matrix
+Access via: `{{$sum := index .PolicyEvaluation.EnvironmentSummary "stg"}}`
 
 ```go
-| Policy | Enforcement |{{range .MultiEnvPolicyReport.Environments}} {{.}} |{{end}}
-|--------|-------------|{{range .MultiEnvPolicyReport.Environments}}--------|{{end}}
-{{range $policy := .MultiEnvPolicyReport.Policies}}| {{$policy.Name}} | {{$policy.Level}} |{{range $env := $.MultiEnvPolicyReport.Environments}}{{$result := index $policy.Results $env}} {{if $result}}{{if eq $result.Status "PASS"}}✅{{else if eq $result.Status "FAIL"}}⚠️{{else}}{{$result.Status}}{{end}}{{else}}N/A{{end}} |{{end}}
-{{end}}
+.PassingStatus {
+  .PassBlockingCheck   bool
+  .PassWarningCheck    bool
+  .PassRecommendCheck  bool
+}
+
+.PolicyCounts {
+  .TotalCount               int
+  .TotalSuccess             int
+  .TotalFailed              int
+  .TotalOmitted             int
+  .TotalOmittedFailed       int
+  .TotalOmittedSuccess      int
+  .BlockingSuccessCount     int
+  .BlockingFailedCount      int
+  .WarningSuccessCount      int
+  .WarningFailedCount       int
+  .RecommendSuccessCount    int
+  .RecommendFailedCount     int
+  .OverriddenSuccessCount   int
+  .OverriddenFailedCount    int
+  .NotInEffectSuccessCount  int
+  .NotInEffectFailedCount   int
+}
 ```
 
-### Summary Per Environment
+### PolicyMatrix (map[string]PolicyMatrix)
+
+Access via: `{{$matrix := index .PolicyEvaluation.PolicyMatrix "prod"}}`
 
 ```go
-{{range $env, $sum := .MultiEnvPolicyReport.Summary}}
-**{{$env}}:** {{$sum.PassedPolicies}}/{{$sum.TotalPolicies}} passed{{if gt $sum.FailedPolicies 0}} | ❌ {{$sum.FailedPolicies}} failed{{end}}{{if gt $sum.ErroredPolicies 0}} | 💥 {{$sum.ErroredPolicies}} errored{{end}}  
-{{end}}
+.BlockingPolicies     []PolicyResult
+.WarningPolicies      []PolicyResult
+.RecommendPolicies    []PolicyResult
+.OverriddenPolicies   []PolicyResult
+.NotInEffectPolicies  []PolicyResult
 ```
 
-### Failed Policies Details
+### PolicyResult
 
 ```go
-{{range $env, $sum := .MultiEnvPolicyReport.Summary}}
-{{if gt $sum.FailedPolicies 0}}
-### ⚠️ Failed Policies in {{$env}}
-
-{{range $.MultiEnvPolicyReport.Policies}}
-{{$result := index .Results $env}}
-{{if and $result (ne $result.Status "PASS")}}
-#### {{.Name}}
-- **Enforcement:** {{.Level}}
-{{if $result.Violations}}- **Violations:**{{range $result.Violations}}
-  - {{.}}{{end}}{{end}}
-{{if $result.Error}}- **Error:** {{$result.Error}}{{end}}
-{{end}}
-{{end}}
-{{end}}
-{{end}}
+.PolicyId       string     // Policy identifier
+.PolicyName     string     // Display name
+.ExternalLink   string     // Optional documentation URL
+.IsPassing      bool       // true if passed
+.FailMessages   []string   // Failure details
 ```
 
-### Conditional Rendering
+## Template Functions
 
 ```go
-{{if gt .MultiEnvPolicyReport.Summary.stg.FailedPolicies 0}}
-  There are failed policies in staging
-{{end}}
+{{if gt .LineCount 0}}                    // Greater than
+{{if eq .ContentType "text"}}             // Equal
+{{range .Environments}}                   // Iterate
+{{$diff := index .ManifestChanges $env}}  // Map access
+{{.Timestamp.Format "2006-01-02"}}        // Time format
+```
 
-{{if .EnvironmentDiffs}}
-  Changes detected in manifests
-{{else}}
-  No changes detected
+## Usage Examples
+
+### Iterate environments and show diffs
+
+```go
+{{range $env := .Environments}}
+  {{$diff := index $.ManifestChanges $env}}
+  ### {{$env}}
+  Lines: {{$diff.LineCount}} (+{{$diff.AddedLineCount}} -{{$diff.DeletedLineCount}})
+  {{if eq $diff.ContentType "text"}}
+    ```diff
+    {{$diff.Content}}
+    ```
+  {{else}}
+    [View diff artifact]({{$diff.Content}})
+  {{end}}
 {{end}}
 ```
 
-## Template Development Tips
+### Policy summary table
 
-1. **Use range for iteration**: Always use `{{range}}` to iterate over slices
-2. **Check for nil values**: Use `{{if $result}}` before accessing nested data
-3. **Format time properly**: Use `.Format "2006-01-02 15:04:05 UTC"` for timestamps
-4. **Use conditional rendering**: Leverage `{{if}}` statements for dynamic content
-5. **Escape special characters**: Use backticks for inline code: `` `{{.Service}}` ``
-6. **Test with local mode**: Use `make run-local` to test template changes
+```go
+| Environment | Success | Failed | Blocking❌ | Warning⚠️ | Recommend💡 |
+|-------------|---------|--------|-----------|----------|------------|
+{{range $env, $sum := .PolicyEvaluation.EnvironmentSummary -}}
+| {{$env}} | {{$sum.PolicyCounts.TotalSuccess}} | {{$sum.PolicyCounts.TotalFailed}} | {{$sum.PolicyCounts.BlockingFailedCount}} | {{$sum.PolicyCounts.WarningFailedCount}} | {{$sum.PolicyCounts.RecommendFailedCount}} |
+{{end}}
+```
 
-## Default Templates
+### Policy matrix with external links
 
-The tool includes default embedded templates that can be used as reference:
+```go
+{{$matrix := index .PolicyEvaluation.PolicyMatrix "stg"}}
+{{range $policy := $matrix.BlockingPolicies}}
+  {{if $policy.ExternalLink}}
+    - [{{$policy.PolicyName}}]({{$policy.ExternalLink}})
+  {{else}}
+    - {{$policy.PolicyName}}
+  {{end}}
+  {{if not $policy.IsPassing}}
+    {{range $policy.FailMessages}}
+      - ❌ {{.}}
+    {{end}}
+  {{end}}
+{{end}}
+```
 
-- **Comment Template**: `src/templates/comment.md.tmpl`
-- **Diff Template**: `src/templates/diff.md.tmpl`  
-- **Policy Template**: `src/templates/policy.md.tmpl`
+### Cross-environment policy comparison
 
-These templates demonstrate proper usage of all available variables and functions.
+```go
+| Policy | stg | prod |
+|--------|-----|------|
+{{range $policy := (index .PolicyEvaluation.PolicyMatrix "stg").BlockingPolicies -}}
+  {{$prodMatrix := index $.PolicyEvaluation.PolicyMatrix "prod" -}}
+  {{$prodPolicy := "" -}}
+  {{range $p := $prodMatrix.BlockingPolicies -}}
+    {{if eq $p.PolicyId $policy.PolicyId}}{{$prodPolicy = $p}}{{end -}}
+  {{end -}}
+| {{$policy.PolicyName}} | {{if $policy.IsPassing}}✅{{else}}❌{{end}} | {{if $prodPolicy.IsPassing}}✅{{else}}❌{{end}} |
+{{end}}
+```
+
+## Example Output (JSON)
+
+```json
+{
+  "service": "my-app",
+  "timestamp": "2025-10-29T15:24:38.440679+09:00",
+  "baseCommit": "abc1234",
+  "headCommit": "def5678",
+  "environments": ["stg", "prod"],
+  "manifestChanges": {
+    "stg": {
+      "lineCount": 16,
+      "addedLineCount": 12,
+      "deletedLineCount": 4,
+      "contentType": "text",
+      "content": "--- before\t2025-10-29 15:24:38\n+++ after\t2025-10-29 15:24:38\n..."
+    },
+    "prod": {
+      "lineCount": 36,
+      "addedLineCount": 32,
+      "deletedLineCount": 4,
+      "contentType": "text",
+      "content": "--- before\t2025-10-29 15:24:38\n+++ after\t2025-10-29 15:24:38\n..."
+    }
+  },
+  "policyEvaluation": {
+    "environmentSummary": {
+      "stg": {
+        "passingStatus": {
+          "passBlockingCheck": true,
+          "passWarningCheck": false,
+          "passRecommendCheck": false
+        },
+        "policyCounts": {
+          "totalCount": 5,
+          "totalSuccess": 3,
+          "totalFailed": 2,
+          "blockingFailedCount": 0,
+          "warningFailedCount": 1,
+          "recommendFailedCount": 1
+        }
+      },
+      "prod": {
+        "passingStatus": {
+          "passBlockingCheck": false,
+          "passWarningCheck": false,
+          "passRecommendCheck": false
+        },
+        "policyCounts": {
+          "totalCount": 5,
+          "totalSuccess": 2,
+          "totalFailed": 3,
+          "blockingFailedCount": 1,
+          "warningFailedCount": 1,
+          "recommendFailedCount": 1
+        }
+      }
+    },
+    "policyMatrix": {
+      "stg": {
+        "blockingPolicies": [
+          {
+            "policyId": "service-persistent-volume-forbidden",
+            "policyName": "Service Persistent Volume Forbidden",
+            "isPassing": true,
+            "failMessages": []
+          },
+          {
+            "policyId": "service-taggings",
+            "policyName": "Service Taggings",
+            "isPassing": true,
+            "failMessages": []
+          }
+        ],
+        "warningPolicies": [
+          {
+            "policyId": "service-high-availability",
+            "policyName": "Service High Availability",
+            "externalLink": "https://example.com/docs/high-availability",
+            "isPassing": false,
+            "failMessages": [
+              "Deployment 'stg-my-app' must have PodAntiAffinity or PodTopologySpread for high availability"
+            ]
+          }
+        ],
+        "recommendPolicies": [
+          {
+            "policyId": "service-no-cpu-limit",
+            "policyName": "Service No CPU Limit",
+            "isPassing": false,
+            "failMessages": [
+              "Deployment 'stg-my-app' container 'my-app' should not have a cpu limit, found: 800m"
+            ]
+          }
+        ],
+        "overriddenPolicies": [],
+        "notInEffectPolicies": []
+      },
+      "prod": {
+        "blockingPolicies": [
+          {
+            "policyId": "service-persistent-volume-forbidden",
+            "policyName": "Service Persistent Volume Forbidden",
+            "isPassing": true,
+            "failMessages": []
+          },
+          {
+            "policyId": "service-taggings",
+            "policyName": "Service Taggings",
+            "isPassing": false,
+            "failMessages": [
+              "CronJob prod-hello-world-cronjob does not have the required label 'github.com/nvatuan/domains'",
+              "Deployment prod-my-app does not have the required label 'github.com/nvatuan/domains'"
+            ]
+          }
+        ],
+        "warningPolicies": [
+          {
+            "policyId": "service-high-availability",
+            "policyName": "Service High Availability",
+            "externalLink": "https://example.com/docs/high-availability",
+            "isPassing": false,
+            "failMessages": [
+              "Deployment 'prod-my-app' must have PodAntiAffinity or PodTopologySpread for high availability"
+            ]
+          }
+        ],
+        "recommendPolicies": [
+          {
+            "policyId": "service-no-cpu-limit",
+            "policyName": "Service No CPU Limit",
+            "isPassing": true,
+            "failMessages": []
+          }
+        ],
+        "overriddenPolicies": [],
+        "notInEffectPolicies": []
+      }
+    }
+  }
+}
+```
+
+## Testing
+
+```bash
+# Test templates locally
+make run-local
+
+# View generated report
+cat test/output/report.md
+cat test/output/report.json
+```
