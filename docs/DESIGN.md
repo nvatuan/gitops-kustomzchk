@@ -21,30 +21,42 @@ gitops-kustomz/
 │   │   └── gitops-kustomz/       # CLI entry point (main.go)
 │   ├── pkg/
 │   │   ├── github/
-│   │   │   └── client.go         # GitHub API client (create/update comments, PR ops)
+│   │   │   └── client.go         # GitHub API client, sparse checkout, artifact URLs
 │   │   ├── kustomize/
 │   │   │   └── builder.go        # Kustomize build wrapper
 │   │   ├── diff/
-│   │   │   └── differ.go         # Diff kustomize builds (base vs head)
+│   │   │   └── differ.go         # Diff kustomize builds, line counting
 │   │   ├── policy/
-│   │   │   ├── evaluator.go      # Load config, evaluate OPA, check overrides
-│   │   │   └── reporter.go       # Generate policy evaluation report
-│   │   ├── config/
-│   │   │   ├── config.go         # Configuration loader
-│   │   │   └── types.go          # Config structs
-│   │   └── template/
-│   │       └── renderer.go       # Template rendering
+│   │   │   └── evaluator.go      # Load config, evaluate with conftest, check overrides
+│   │   ├── models/
+│   │   │   ├── reportdata.go     # Report data structures
+│   │   │   ├── compliance_config.go  # Policy configuration types
+│   │   │   └── diff_result.go    # Diff result types
+│   │   ├── template/
+│   │   │   └── renderer.go       # Template rendering
+│   │   └── trace/
+│   │       └── trace.go          # OpenTelemetry performance tracing
 │   ├── internal/
+│   │   ├── runner/
+│   │   │   ├── base.go           # Base runner with common logic
+│   │   │   ├── github.go         # GitHub-specific runner
+│   │   │   └── local.go          # Local testing runner
 │   │   └── testutil/             # Test utilities
 │   └── templates/                # Default markdown templates
 │       ├── comment.md.tmpl       # Main PR comment template
 │       ├── diff.md.tmpl          # Diff section template
 │       └── policy.md.tmpl        # Policy report template
 ├── sample/                        # Example policies & manifests
+│   ├── github-actions/           # Sample GitHub Actions workflows
+│   ├── k8s-manifests/            # Sample Kubernetes manifests with kustomize
+│   ├── policies/                 # Sample OPA policies
+│   └── templates/                # Sample custom templates
 ├── test/                          # Test data
 │   ├── local/                    # Local testing mode data
+│   ├── ut_local/                 # System Integration Test data
 │   └── output/                   # Generated test reports
 ├── docs/                          # Documentation
+├── scripts/                       # Git hooks and utilities
 ├── go.mod                         # Go module definition
 └── Makefile                       # Build automation
 ```
@@ -58,46 +70,67 @@ gitops-kustomz/
 gitops-kustomz [flags]
 
 Flags:
-  --run-mode string            # Run mode: github or local (default: github)
-  --service string             # Service name (e.g., my-app) [required]
-  --environments strings       # Comma-separated environments (e.g., stg,prod) [required]
-  --policies-path string       # Path to policies dir containing compliance-config.yaml (default: ./policies)
-  --templates-path string      # Path to templates directory (default: ./templates)
+  --run-mode string                     # Run mode: github or local (default: github)
+  --service string                      # Service name (e.g., my-app) [required]
+  --environments strings                # Comma-separated environments (e.g., stg,prod) [required]
+  --policies-path string                # Path to policies dir containing compliance-config.yaml (default: ./policies)
+  --templates-path string               # Path to templates directory (default: ./templates)
+  --manifests-path string               # Path to manifests directory (default: ./manifests)
+  --output-dir string                   # Output directory for reports (default: ./output)
+  --enable-export-report                # Export report.json in local mode (default: false)
+  --enable-export-performance-report    # Export performance.json with timing data (default: false)
   
   # GitHub mode flags
-  --gh-repo string             # Repository (e.g., org/repo) [required for github mode]
-  --gh-pr-number int           # PR number [required for github mode]
+  --gh-repo string                      # Repository (e.g., org/repo) [required for github mode]
+  --gh-pr-number int                    # PR number [required for github mode]
   
   # Local mode flags
-  --lc-before string           # Path to before/base kustomize directory [required for local mode]
-  --lc-after string            # Path to after/head kustomize directory [required for local mode]
-  --lc-output-dir string       # Local mode output directory (default: ./output)
+  --lc-before-manifests-path string     # Path to before/base manifests directory [required for local mode]
+  --lc-after-manifests-path string      # Path to after/head manifests directory [required for local mode]
+
+Environment Variables:
+  GH_TOKEN / GITHUB_TOKEN               # GitHub token for API access (required for GitHub mode)
+  GITHUB_RUN_ID / GH_RUN_ID             # GitHub Actions run ID (auto-set, for artifact URLs)
+  LOGLEVEL                              # Log level: debug, info, warn, error (default: info)
+  DEBUG                                 # Enable debug mode: 1 or true
+  GH_MAX_COMMENT_LENGTH                 # Max diff length before artifact upload (default: 10000)
 ```
 
 ### 2. GitHub Client (`src/pkg/github/`)
 
 #### Responsibilities:
 - Authenticate with GitHub API using token from GH_TOKEN env var
-- Create placeholder PR comment
-- Update PR comment with diff and policy results
-- Retrieve PR information (base/head SHA)
-- Check PR comments for override commands
+- Fetch PR information (base/head SHA, changed files)
+- Create/update PR comments with policy reports
+- Find existing tool-generated comments using marker
+- Sparse checkout at specific paths for efficient manifest fetching
+- Prepare artifact URLs for long diffs
 
 #### Key Functions:
 ```go
-type Client interface {
-    GetPR(ctx context.Context, owner, repo string, number int) (*PullRequest, error)
-    CreateComment(ctx context.Context, owner, repo string, number int, body string) (*Comment, error)
-    UpdateComment(ctx context.Context, owner, repo string, commentID int64, body string) error
-    GetComments(ctx context.Context, owner, repo string, number int) ([]*Comment, error)
-    FindToolComment(ctx context.Context, owner, repo string, number int, marker string) (*Comment, error)
+type GitHubClient interface {
+    GetPR(ctx context.Context, repo string, number int) (*models.PullRequest, error)
+    CreateComment(ctx context.Context, repo string, number int, body string) (*models.Comment, error)
+    UpdateComment(ctx context.Context, repo string, commentID int64, body string) error
+    GetComments(ctx context.Context, repo string, number int) ([]*models.Comment, error)
+    FindToolComment(ctx context.Context, repo string, prNumber int) (*models.Comment, error)
+    SparseCheckoutAtPath(ctx context.Context, cloneURL, ref, path string) (string, error)
+    UploadPathToArtifact(ctx context.Context, repo string, runID int, filepath string) (string, error)
 }
 ```
 
 #### Comment Management:
-- Use a unique marker in comment to identify tool-generated comments: `<!-- gitops-kustomz: <service>-<env> -->`
+- Use a unique marker in comment to identify tool-generated comments
+- Marker format: `<!-- gitops-kustomz-report -->`
 - If comment exists, update it; otherwise create new
-- Support multiple service-env combinations in single PR (separate comments or sections)
+- Support multi-environment reports in a single comment
+
+#### Sparse Checkout:
+- Uses `git clone --filter=tree:0 --no-checkout` for treeless clone
+- Sets sparse-checkout to specified path only
+- Checks out specific ref (base or head branch)
+- Returns absolute path to checked-out directory
+- Includes timestamp in directory name to avoid conflicts
 
 ### 3. Kustomize Builder (`src/pkg/kustomize/`)
 
@@ -727,36 +760,277 @@ Note: Caching optimizations are deferred for future implementation.
 17. **Multiple Repos**: Single repository only
 18. **Branch Strategy**: Agnostic - works with any strategy
 
+## Data Flow Diagram
+
+### Component Interaction Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         CLI Entry Point                              │
+│                     (cmd/gitops-kustomz/main.go)                    │
+│                                                                       │
+│  Parses flags: --service, --environments, --policies-path,          │
+│                --templates-path, --run-mode, etc.                    │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │   Choose Run Mode     │
+                    └───┬───────────────┬───┘
+                        │               │
+            ┌───────────▼─────┐    ┌───▼────────────┐
+            │  GitHub Runner  │    │  Local Runner  │
+            └───────┬─────────┘    └───┬────────────┘
+                    │                  │
+                    │  Both inherit from RunnerBase
+                    │
+        ┌───────────▼──────────────────▼───────────┐
+        │          RunnerBase                      │
+        │  ┌──────────────────────────────────┐   │
+        │  │ 1. Build Manifests               │   │
+        │  │    - Kustomize Builder           │   │
+        │  │    - Build base & head           │   │
+        │  └────────────┬─────────────────────┘   │
+        │               │                          │
+        │  ┌────────────▼─────────────────────┐   │
+        │  │ 2. Diff Manifests                │   │
+        │  │    - Differ (pkg/diff)           │   │
+        │  │    - Line count calculation      │   │
+        │  │    - (GitHub: artifact upload    │   │
+        │  │      if >10k chars)              │   │
+        │  └────────────┬─────────────────────┘   │
+        │               │                          │
+        │  ┌────────────▼─────────────────────┐   │
+        │  │ 3. Evaluate Policies             │   │
+        │  │    - Policy Evaluator            │   │
+        │  │    - Load compliance-config.yaml │   │
+        │  │    - Run conftest on manifests   │   │
+        │  │    - Check enforcement levels    │   │
+        │  └────────────┬─────────────────────┘   │
+        └───────────────┼──────────────────────────┘
+                        │
+        ┌───────────────▼──────────────────────────┐
+        │          Generate Report Data            │
+        │    (models.ReportData structure)         │
+        │                                           │
+        │  - ManifestChanges: map[env]EnvDiff      │
+        │  - PolicyEvaluation: PolicyReport        │
+        │  - Metadata: Service, Timestamp, etc.    │
+        └───────────────┬──────────────────────────┘
+                        │
+            ┌───────────▼───────────┐
+            │   Render Templates    │
+            │  (template.Renderer)  │
+            │                       │
+            │  Uses:                │
+            │  - comment.md.tmpl    │
+            │  - diff.md.tmpl       │
+            │  - policy.md.tmpl     │
+            └───────┬───────────────┘
+                    │
+        ┌───────────▼───────────────────────┐
+        │       Output/Publish              │
+        │                                   │
+        │  GitHub Mode:                     │
+        │    → Create/Update PR Comment     │
+        │    → Upload artifacts (if needed) │
+        │                                   │
+        │  Local Mode:                      │
+        │    → Write report.md              │
+        │    → Write report.json            │
+        │    → Write performance.json       │
+        └───────────────────────────────────┘
+```
+
+### Policy Evaluation Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    compliance-config.yaml                            │
+│                                                                       │
+│  policies:                                                           │
+│    service-high-availability:                                        │
+│      name: "Service High Availability"                               │
+│      externalLink: "https://docs.example.com/policies/ha"           │
+│      filePath: "ha.rego"                                             │
+│      enforcement:                                                    │
+│        inEffectAfter: 2025-10-01T00:00:00Z                          │
+│        isWarningAfter: 2025-11-01T00:00:00Z                         │
+│        isBlockingAfter: 2025-12-01T00:00:00Z                        │
+│        override:                                                     │
+│          comment: "/override-ha"                                     │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │  Policy Evaluator     │
+                    │  (pkg/policy)         │
+                    └───────────┬───────────┘
+                                │
+                    ┌───────────▼────────────────────────┐
+                    │  For each environment:             │
+                    │                                    │
+                    │  1. Load built manifest            │
+                    │  2. Run conftest with policy       │
+                    │  3. Parse conftest output          │
+                    │  4. Check current enforcement      │
+                    │     level (time-based)             │
+                    │  5. Check for override comments    │
+                    │  6. Generate policy result         │
+                    └───────────┬────────────────────────┘
+                                │
+                ┌───────────────▼───────────────────┐
+                │      Policy Result Matrix         │
+                │                                   │
+                │  Environment: stg                 │
+                │    - BlockingPolicies: []         │
+                │    - WarningPolicies: [...]       │
+                │    - RecommendPolicies: [...]     │
+                │    - OverriddenPolicies: []       │
+                │    - NotInEffectPolicies: []      │
+                │                                   │
+                │  Environment: prod                │
+                │    - BlockingPolicies: []         │
+                │    - WarningPolicies: [...]       │
+                │    - RecommendPolicies: [...]     │
+                │    - OverriddenPolicies: []       │
+                │    - NotInEffectPolicies: []      │
+                └───────────────┬───────────────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │   Policy Summary      │
+                    │                       │
+                    │  Per Environment:     │
+                    │    - TotalSuccess     │
+                    │    - TotalFailed      │
+                    │    - TotalOmitted     │
+                    │    - BlockingFailed   │
+                    │    - WarningFailed    │
+                    │    - RecommendFailed  │
+                    └───────────────────────┘
+```
+
+### Template Rendering Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                      ReportData (Go Struct)                          │
+│                                                                       │
+│  type ReportData struct {                                            │
+│    Service          string                                           │
+│    Environments     []string                                         │
+│    BaseCommit       string                                           │
+│    HeadCommit       string                                           │
+│    Timestamp        time.Time                                        │
+│    ManifestChanges  map[string]EnvironmentDiff                       │
+│    PolicyEvaluation PolicyReport                                     │
+│  }                                                                    │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │
+                    ┌───────────▼───────────┐
+                    │  Template Renderer    │
+                    │  (pkg/template)       │
+                    └───────────┬───────────┘
+                                │
+                ┌───────────────▼───────────────────┐
+                │   Load & Parse Templates          │
+                │                                   │
+                │   1. comment.md.tmpl (main)       │
+                │   2. diff.md.tmpl                 │
+                │   3. policy.md.tmpl               │
+                └───────────┬───────────────────────┘
+                            │
+            ┌───────────────▼───────────────┐
+            │    Execute Templates          │
+            │                               │
+            │  Available Variables:         │
+            │  {{.Service}}                 │
+            │  {{.Environments}}            │
+            │  {{.ManifestChanges}}         │
+            │  {{.PolicyEvaluation}}        │
+            │  {{.Timestamp}}               │
+            │  etc.                         │
+            └───────────┬───────────────────┘
+                        │
+        ┌───────────────▼───────────────────────┐
+        │      Template Functions               │
+        │                                       │
+        │  {{range .Environments}}              │
+        │    → Iterate over environments        │
+        │                                       │
+        │  {{if gt .LineCount 0}}               │
+        │    → Conditional rendering            │
+        │                                       │
+        │  {{$diff := index .ManifestChanges    │
+        │      $env}}                           │
+        │    → Variable assignment              │
+        │                                       │
+        │  {{.Timestamp.Format "2006-01-02"}}   │
+        │    → Time formatting                  │
+        └───────────┬───────────────────────────┘
+                    │
+        ┌───────────▼───────────────────────────┐
+        │     Rendered Markdown Output          │
+        │                                       │
+        │  # 🔍 GitOps Policy Check: my-app     │
+        │                                       │
+        │  ## 📊 Manifest Changes               │
+        │  ### stg                              │
+        │  ```diff                              │
+        │  ...                                  │
+        │  ```                                  │
+        │                                       │
+        │  ## 🛡️ Policy Evaluation             │
+        │  | Policy | Level | stg | prod |      │
+        │  |--------|-------|-----|------|      │
+        │  | [HA](link) | 🚫 | ✅ | ✅ |        │
+        └───────────────────────────────────────┘
+```
+
 ## Template Variable Reference
 
-All template variables available in `comment.md.tmpl`:
+**See [TEMPLATE_VARIABLES.md](./TEMPLATE_VARIABLES.md) for comprehensive reference.**
+
+Quick summary of available variables:
 
 ```go
-.Service           // string: Service name (e.g., "my-app")
-.Environment       // string: Environment name (e.g., "stg")
-.BaseCommit        // string: Base branch commit SHA (short)
-.HeadCommit        // string: Head branch commit SHA (short)
-.Timestamp         // time.Time: When the check ran
+// Top-Level Variables
+.Service                    // string: Service name
+.Environments               // []string: List of environments
+.BaseCommit                 // string: Base branch commit SHA
+.HeadCommit                 // string: Head branch commit SHA
+.Timestamp                  // time.Time: When the check ran
+.ManifestChanges            // map[string]EnvironmentDiff
+.PolicyEvaluation           // PolicyReport
 
-.Diff.HasChanges   // bool: Whether any changes detected
-.Diff.Content      // string: Raw unified diff content
-.Diff.LineCount    // int: Number of diff lines
+// EnvironmentDiff (in .ManifestChanges[env])
+.ContentType                // string: "text" or "ext_ghartifact"
+.Content                    // string: Diff text or artifact URL
+.LineCount                  // int: Total changed lines
+.AddedLineCount             // int: Added lines
+.DeletedLineCount           // int: Deleted lines
 
-.PolicyReport.TotalPolicies      // int
-.PolicyReport.PassedPolicies     // int
-.PolicyReport.FailedPolicies     // int
-.PolicyReport.ErroredPolicies    // int
-.PolicyReport.BlockingFailures   // int
-.PolicyReport.WarningFailures    // int
-.PolicyReport.RecommendFailures  // int
-.PolicyReport.Details            // []PolicyDetail
+// PolicyReport (in .PolicyEvaluation)
+.EnvironmentSummary         // map[string]EnvironmentSummary
+.PolicyMatrix               // map[string]EnvironmentPolicyMatrix
 
-// PolicyDetail fields:
-.Name          // string: Policy name
-.Description   // string: Policy description
-.Status        // string: "PASS", "FAIL", or "ERROR"
-.Level         // string: "RECOMMEND", "WARNING", "BLOCK", "DISABLED"
-.Overridden    // bool: Whether override comment was found
-.Error         // string: Error message if Status == "ERROR"
-.Violations    // []string: List of violation messages
+// EnvironmentSummary
+.PolicyCounts.TotalSuccess          // int
+.PolicyCounts.TotalFailed           // int
+.PolicyCounts.TotalOmitted          // int
+.PolicyCounts.BlockingFailedCount   // int
+.PolicyCounts.WarningFailedCount    // int
+.PolicyCounts.RecommendFailedCount  // int
+
+// EnvironmentPolicyMatrix
+.BlockingPolicies           // []PolicyResult
+.WarningPolicies            // []PolicyResult
+.RecommendPolicies          // []PolicyResult
+.OverriddenPolicies         // []PolicyResult
+.NotInEffectPolicies        // []PolicyResult
+
+// PolicyResult
+.PolicyId                   // string: Policy identifier
+.PolicyName                 // string: Display name
+.ExternalLink               // string: Optional documentation link
+.IsPassing                  // bool: Policy passed
+.FailMessages               // []string: Failure messages
 ```

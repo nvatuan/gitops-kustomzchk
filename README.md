@@ -16,13 +16,10 @@ GitOps policy enforcement tool for Kubernetes manifests managed with Kustomize.
 - 🔍 **Kustomize Build & Diff**: Builds manifests from base and head branches, generates clear diffs
 - 📋 **Policy Enforcement**: Evaluates OPA policies with configurable enforcement levels (RECOMMEND/WARNING/BLOCK)
 - 💬 **GitHub Integration**: Posts detailed policy reports and diffs as PR comments
-- 📎 **Smart Diff Handling**: Automatically uploads large diffs (>10k chars) as GitHub artifacts with links in PR comments
 - 🔗 **Policy Documentation**: Add external links to policies for easy access to documentation
 - 📊 **Enhanced Policy Matrix**: View all policies with enforcement levels in a comprehensive table
-- ⚡ **Fast**: Parallel policy evaluation with goroutines, <2s build time target
 - 🧪 **Local Testing**: Test policies locally without GitHub PR
 - 📈 **Performance Tracing**: Optional performance reports with detailed timing for each step
-- 🧹 **Clean Diffs**: Kustomize warnings filtered out from diff output
 
 ## Quick Start
 
@@ -39,6 +36,8 @@ cp sample/github-actions/gitops-policy-check-multi-env.yml \
 See [sample/github-actions/README.md](./sample/github-actions/README.md) for detailed setup instructions.
 
 ### CLI Usage
+
+Check Makefile for more examples (eg. `run-local`, `run-github`).
 
 ```bash
 # Run on a PR (GitHub mode)
