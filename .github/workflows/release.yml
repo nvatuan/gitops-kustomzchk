@@ -74,10 +74,10 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            dist/gitops-kustomz-linux-amd64
-            dist/gitops-kustomz-linux-arm64
-            dist/gitops-kustomz-darwin-amd64
-            dist/gitops-kustomz-darwin-arm64
+            dist/gitops-kustomzchk-linux-amd64
+            dist/gitops-kustomzchk-linux-arm64
+            dist/gitops-kustomzchk-darwin-amd64
+            dist/gitops-kustomzchk-darwin-arm64
             dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
