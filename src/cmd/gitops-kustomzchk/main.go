@@ -54,6 +54,8 @@ It builds kustomize manifests, diffs them, evaluates OPA policies, and posts det
 		"Output directory in case the tool need to export files. In local mode, the tool will export the report to this directory.")
 	cmd.Flags().BoolVar(&opts.EnableExportReport, "enable-export-report", false, "Enable export report (json file to output dir)")
 	cmd.Flags().BoolVar(&opts.EnableExportPerformanceReport, "enable-export-performance-report", false, "Enable export performance report (json file to output dir)")
+	cmd.Flags().BoolVar(&opts.FailOnOverlayNotFound, "fail-on-overlay-not-found", false,
+		"Fail the build if an overlay/environment doesn't exist (default: false, will skip missing overlays)")
 
 	// GitHub mode flags
 	cmd.Flags().StringVar(&opts.GhRepo, "gh-repo", "",

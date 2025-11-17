@@ -27,7 +27,7 @@ const (
 func createRunner(ctx context.Context, opts *runner.Options) (runner.RunnerInterface, error) {
 	logger.WithField("opts", opts).Debug("Creating runner..")
 
-	builder := kustomize.NewBuilder()
+	builder := kustomize.NewBuilderWithOptions(opts.FailOnOverlayNotFound)
 	differ := diff.NewDiffer()
 	evaluator := policy.NewPolicyEvaluator(opts.PoliciesPath)
 	renderer := template.NewRenderer()

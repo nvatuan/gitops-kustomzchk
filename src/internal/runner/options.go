@@ -13,6 +13,7 @@ type Options struct {
 	OutputDir                     string
 	EnableExportReport            bool
 	EnableExportPerformanceReport bool
+	FailOnOverlayNotFound         bool // Fail if overlay doesn't exist (default: false, skip gracefully)
 
 	// GitHub mode options
 	GhRepo        string
