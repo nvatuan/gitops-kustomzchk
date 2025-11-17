@@ -2,6 +2,7 @@ package kustomize
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,11 @@ import (
 )
 
 var logger = log.WithField("package", "kustomize")
+
+var (
+	// ErrOverlayNotFound indicates that the requested overlay/environment doesn't exist
+	ErrOverlayNotFound = errors.New("overlay not found")
+)
 
 const (
 	KUSTOMIZE_BASE_DIR         = "base"
@@ -42,19 +48,34 @@ type KustomizeBuilder interface {
 }
 
 // Builder handles kustomize builds
-type Builder struct{}
+type Builder struct {
+	FailOnOverlayNotFound bool // If true, fail when overlay doesn't exist; if false, skip gracefully
+}
 
 // Ensure Builder implements KustomizeBuilder
 var _ KustomizeBuilder = (*Builder)(nil)
 
-// NewBuilder creates a new kustomize builder
+// NewBuilder creates a new kustomize builder with default settings (fail on overlay not found = false)
 func NewBuilder() *Builder {
-	return &Builder{}
+	return &Builder{
+		FailOnOverlayNotFound: false,
+	}
+}
+
+// NewBuilderWithOptions creates a new kustomize builder with custom options
+func NewBuilderWithOptions(failOnOverlayNotFound bool) *Builder {
+	return &Builder{
+		FailOnOverlayNotFound: failOnOverlayNotFound,
+	}
 }
 
 func (b *Builder) Build(ctx context.Context, path string, overlayName string) ([]byte, error) {
 	buildPath, err := b.getBuildPath(path, overlayName)
 	if err != nil {
+		// If it's the special "overlay not found" error, propagate it up
+		if errors.Is(err, ErrOverlayNotFound) {
+			return nil, ErrOverlayNotFound
+		}
 		return nil, err
 	}
 	return b.buildAtPath(ctx, buildPath)
@@ -119,10 +140,14 @@ func (b *Builder) validateBuildPath(path, overlayName string) error {
 	// Check if environment exists
 	envPath := filepath.Join(path, KUSTOMIZE_OVERLAY_DIR_NAME, overlayName)
 	if _, err := os.Stat(envPath); os.IsNotExist(err) {
-		// we ignore if environment does not exist, because it means the service is not deployed to this environment
-		// instead of: return fmt.Errorf("environment '%s' not found for path '%s'", overlayName, path)
-		fmt.Printf("environment '%s' not found for path '%s', skipping validation\n", overlayName, path)
-		return nil
+		// Handle missing overlay based on configuration
+		if b.FailOnOverlayNotFound {
+			return fmt.Errorf("environment '%s' not found for path '%s'", overlayName, path)
+		}
+		// If we're not failing on missing overlays, return the special error
+		logger.WithField("path", path).WithField("overlayName", overlayName).
+			Warn("Environment overlay not found, will skip this environment")
+		return ErrOverlayNotFound
 	}
 
 	// If overlay exists, it must be able to build

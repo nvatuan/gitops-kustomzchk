@@ -60,6 +60,7 @@ run-local: build
 	DEBUG=1 ${BIN_DIR}/${BINARY_NAME} --run-mode local \
 		--service my-app \
 		--environments stg,prod \
+		--fail-on-overlay-not-found=false \
 		--lc-before-manifests-path test/local/before/services \
 		--lc-after-manifests-path test/local/after/services \
 		--policies-path test/local/policies \
