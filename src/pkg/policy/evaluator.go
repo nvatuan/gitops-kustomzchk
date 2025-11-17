@@ -207,6 +207,25 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 	// 1. Evaluate policies for each environment and store results (can goroutine)
 	complianceCfg := e.data.ComplianceConfig
 	for env, manifest := range envManifests {
+		// Skip policy evaluation if environment was skipped during build
+		if manifest.Skipped {
+			logger.WithField("env", env).WithField("reason", manifest.SkipReason).Info("Skipping policy evaluation for environment (overlay not found)")
+			// Create empty results for skipped environments
+			policyIdToResult := make(map[string]models.PolicyResult)
+			for policyId := range complianceCfg.Policies {
+				policy := complianceCfg.Policies[policyId]
+				policyIdToResult[policyId] = models.PolicyResult{
+					PolicyId:     policyId,
+					PolicyName:   policy.Name,
+					ExternalLink: policy.ExternalLink,
+					IsPassing:    true, // Mark as passing since there's nothing to evaluate
+					FailMessages: []string{},
+				}
+			}
+			envToPolicyIdToResult[env] = policyIdToResult
+			continue
+		}
+
 		logger.WithField("env", env).Info("Evaluating policies for environment")
 		policyIdToResult := make(map[string]models.PolicyResult)
 

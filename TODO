@@ -6,6 +6,7 @@ FEATURES
 MAINTENANCE
 - [ ] unit testings and coverage
 - [ ] check the bug if we use `./` prefix for --manifest-path
+- [ ] output json by tool gives not capitalized, while internal working using capitalized. this causes json output to not work seemlessly with gomplate cli command call
 
 OPTIMIZATION
 - [ ] parallel as much as possible with goroutine

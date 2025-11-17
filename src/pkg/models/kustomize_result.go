@@ -8,6 +8,8 @@ type BuildEnvManifestResult struct {
 	Environment    string
 	BeforeManifest []byte
 	AfterManifest  []byte
+	Skipped        bool   // true if overlay doesn't exist and was skipped
+	SkipReason     string // reason for skipping (e.g., "overlay not found")
 }
 
 type PolicyEvaluateResult struct {

@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -92,6 +93,17 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 		logger.WithField("env", env).WithField("beforePath", beforePath).Info("Building before manifest...")
 		beforeManifest, err := r.Builder.Build(envCtx, beforePath, env)
 		if err != nil {
+			if errors.Is(err, kustomize.ErrOverlayNotFound) {
+				// Overlay doesn't exist, mark as skipped
+				logger.WithField("env", env).Warn("Environment overlay not found for before path, marking as skipped")
+				results[env] = models.BuildEnvManifestResult{
+					Environment: env,
+					Skipped:     true,
+					SkipReason:  "overlay not found in before path",
+				}
+				envSpan.End()
+				continue
+			}
 			envSpan.End()
 			return nil, err
 		}
@@ -99,6 +111,17 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 		logger.WithField("env", env).WithField("afterPath", afterPath).Info("Building after manifest...")
 		afterManifest, err := r.Builder.Build(envCtx, afterPath, env)
 		if err != nil {
+			if errors.Is(err, kustomize.ErrOverlayNotFound) {
+				// Overlay doesn't exist, mark as skipped
+				logger.WithField("env", env).Warn("Environment overlay not found for after path, marking as skipped")
+				results[env] = models.BuildEnvManifestResult{
+					Environment: env,
+					Skipped:     true,
+					SkipReason:  "overlay not found in after path",
+				}
+				envSpan.End()
+				continue
+			}
 			envSpan.End()
 			return nil, err
 		}
@@ -106,6 +129,7 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 			Environment:    env,
 			BeforeManifest: beforeManifest,
 			AfterManifest:  afterManifest,
+			Skipped:        false,
 		}
 		logger.WithField("env", env).WithField("beforeManifest", string(beforeManifest)).Debug("Built Manifest")
 		logger.WithField("env", env).WithField("afterManifest", string(afterManifest)).Debug("Built Manifest")
@@ -129,6 +153,17 @@ func (r *RunnerBase) DiffManifests(result *models.BuildManifestResult) (map[stri
 
 	for env, envResult := range result.EnvManifestBuild {
 		_, envSpan := trace.StartSpan(ctx, fmt.Sprintf("DiffManifests.%s", env))
+
+		// Skip diff if environment was skipped during build
+		if envResult.Skipped {
+			logger.WithField("env", env).WithField("reason", envResult.SkipReason).Info("Skipping diff for environment")
+			results[env] = models.EnvironmentDiff{
+				ContentType: models.DiffContentTypeText,
+				Content:     fmt.Sprintf("Environment skipped: %s", envResult.SkipReason),
+			}
+			envSpan.End()
+			continue
+		}
 
 		diffContent, err := r.Differ.Diff(envResult.BeforeManifest, envResult.AfterManifest)
 		if err != nil {
@@ -159,10 +194,24 @@ func (r *RunnerBase) EvaluatePolicies(mf *models.BuildManifestResult) (*models.P
 	defer span.End()
 	logger.Info("EvaluatePolicies: starting...")
 
-	results := models.PolicyEvaluateResult{}
+	results := models.PolicyEvaluateResult{
+		EnvPolicyEvaluate: make(map[string]models.PolicyEnvEvaluateResult),
+	}
 
 	for _, envResult := range mf.EnvManifestBuild {
 		_, envSpan := trace.StartSpan(ctx, fmt.Sprintf("EvaluatePolicies.%s", envResult.Environment))
+
+		// Skip policy evaluation if environment was skipped during build
+		if envResult.Skipped {
+			logger.WithField("env", envResult.Environment).WithField("reason", envResult.SkipReason).Info("Skipping policy evaluation for environment")
+			// Store empty result to indicate it was skipped
+			results.EnvPolicyEvaluate[envResult.Environment] = models.PolicyEnvEvaluateResult{
+				Environment:            envResult.Environment,
+				PolicyIdToEvalFailMsgs: make(map[string][]string),
+			}
+			envSpan.End()
+			continue
+		}
 
 		// only evaluate the after manifest
 		envManifest := envResult.AfterManifest
