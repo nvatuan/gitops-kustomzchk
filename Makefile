@@ -82,8 +82,8 @@ run-github: build
 	${BIN_DIR}/${BINARY_NAME} --run-mode github \
 		--environments stg,prod \
 		--service app-bootstrap-touya \
-		--gh-repo moneyforward/tmp-clone_k8s-service-manifests \
-		--gh-pr-number 1 \
+		--gh-repo moneyforward/k8s-service-manifests \
+		--gh-pr-number 177531 \
 		--enable-export-report true \
 		--enable-export-performance-report true \
 		--output-dir test/output \

@@ -81,11 +81,12 @@ type PolicyMatrix struct {
 
 // PolicyResult represents the result of a single policy evaluation
 type PolicyResult struct {
-	PolicyId     string   `json:"policyId"`
-	PolicyName   string   `json:"policyName"`
-	ExternalLink string   `json:"externalLink,omitempty"` // Optional link to policy documentation
-	IsPassing    bool     `json:"isPassing"`              // true or false, if false it means FailMessages is not empty
-	FailMessages []string `json:"failMessages"`
+	PolicyId        string   `json:"policyId"`
+	PolicyName      string   `json:"policyName"`
+	ExternalLink    string   `json:"externalLink,omitempty"`    // Optional link to policy documentation
+	OverrideCommand string   `json:"overrideCommand,omitempty"` // Override comment command (e.g., "/sp-override-ha")
+	IsPassing       bool     `json:"isPassing"`                 // true or false, if false it means FailMessages is not empty
+	FailMessages    []string `json:"failMessages"`
 }
 
 // ReportTemplateData represents the data structure for template rendering
