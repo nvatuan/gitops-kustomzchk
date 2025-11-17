@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/diff"
@@ -332,11 +333,13 @@ func (r *RunnerGitHub) outputGitHubComment(data *models.ReportData) error {
 	}
 	logger.WithField("renderedMarkdown", renderedMarkdown).Debug("Rendered markdown")
 
-	// Add the comment marker
-	finalComment := template.ToolCommentSignature + "\n\n" + renderedMarkdown
+	// Add the comment marker and replace the service token
+	commentSignature := strings.ReplaceAll(template.ToolCommentSignature, template.ToolCommentServiceToken, r.Options.Service)
+	finalComment := commentSignature + "\n\n" + renderedMarkdown
 
-	// Check if there's an existing comment from this tool
-	existingComment, err := r.ghclient.FindToolComment(r.Context, r.options.GhRepo, r.options.GhPrNumber)
+	// Check if there's an existing comment from this tool for this specific service
+	// We search for the comment signature to find the right comment
+	existingComment, err := r.ghclient.FindToolComment(r.Context, r.options.GhRepo, r.options.GhPrNumber, commentSignature)
 	if err != nil {
 		logger.WithField("error", err).Warn("Failed to find existing comment, will create new one")
 	}

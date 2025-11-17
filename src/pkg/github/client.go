@@ -11,15 +11,12 @@ import (
 	"time"
 
 	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/models"
-	"github.com/gh-nvat/gitops-kustomzchk/src/pkg/template"
 	"github.com/google/go-github/v66/github"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 )
 
 var logger = log.WithField("package", "github")
-
-const GH_COMMENT_MARKER = template.ToolCommentSignature
 
 // GitHubClient defines the interface for GitHub API operations
 type GitHubClient interface {
@@ -31,8 +28,8 @@ type GitHubClient interface {
 	UpdateComment(ctx context.Context, repo string, commentID int64, body string) error
 	// GetComments retrieves all comments for a pull request
 	GetComments(ctx context.Context, repo string, number int) ([]*models.Comment, error)
-	// FindToolComment finds an existing tool-generated comment
-	FindToolComment(ctx context.Context, repo string, prNumber int) (*models.Comment, error)
+	// FindToolComment finds an existing tool-generated comment containing the search string
+	FindToolComment(ctx context.Context, repo string, prNumber int, searchString string) (*models.Comment, error)
 	// SparseCheckoutAtPath clones with treeless and sparse checks out specific ref at path
 	SparseCheckoutAtPath(ctx context.Context, cloneURL, ref, path string) (string, error)
 }
@@ -158,24 +155,21 @@ func (c *Client) GetComments(ctx context.Context, repo string, prNumber int) ([]
 	return allComments, nil
 }
 
-// FindToolComment finds an existing tool-generated comment
-// If multiple comments with the same marker exist, returns the latest one (highest ID)
-func (c *Client) FindToolComment(ctx context.Context, repo string, prNumber int) (*models.Comment, error) {
+// FindToolComment finds an existing tool-generated comment containing the search string
+// If multiple comments with the same marker exist, returns the first one found
+func (c *Client) FindToolComment(ctx context.Context, repo string, prNumber int, searchString string) (*models.Comment, error) {
 	comments, err := c.GetComments(ctx, repo, prNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	var latestComment *models.Comment
 	for _, comment := range comments {
-		if strings.Contains(comment.Body, GH_COMMENT_MARKER) {
-			// If multiple comments exist, for optmization reason, get the first one
-			latestComment = comment
-			break
+		if strings.Contains(comment.Body, searchString) {
+			return comment, nil
 		}
 	}
 
-	return latestComment, nil // Returns nil if not found
+	return nil, nil // Returns nil if not found
 }
 
 // SparseCheckoutAtPath clones with treeless and sparse checks out specific ref at path
