@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// testing 123
 const COMMENT_MARKER = "<!-- gitops-kustomz: auto-generated comment, please do not remove -->"
 
 var (
