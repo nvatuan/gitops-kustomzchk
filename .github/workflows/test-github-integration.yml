@@ -179,13 +179,15 @@ jobs:
         run: |
           COMMENT=$(cat /tmp/pr-comment.md)
           
-          # Check for essential sections
+          # Check for essential sections in the actual comment format
           CHECKS=(
-            "GitOps Policy Check"
-            "Summary"
-            "Service:"
-            "Environment:"
-            "Policy Evaluation"
+            "🔍 GitOps Policy Check"
+            "Timestamp"
+            "Base"
+            "Head"
+            "Environments"
+            "📊 Manifest Changes"
+            "🛡️ Policy Evaluation"
           )
           
           FAILED=0
