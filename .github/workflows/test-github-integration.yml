@@ -105,23 +105,15 @@ jobs:
           echo "pr_url=${PR_URL}" >> $GITHUB_OUTPUT
           echo "Created test PR #${PR_NUMBER}: ${PR_URL}"
 
-      - name: Wait for PR to be ready
-        run: sleep 5
-
-      - name: Trigger gitops runner workflow
-        id: trigger-runner
+      - name: Trigger runner via workflow_dispatch
         env:
           GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
         run: |
           gh workflow run test-github-runner.yml \
-            -f pr_number=${{ steps.create-pr.outputs.pr_number }} \
-            -f service=my-app \
-            -f environments=prod,stg \
-            -f before_ref=${{ steps.create-branches.outputs.base_branch }} \
-            -f after_ref=${{ steps.create-branches.outputs.test_branch }}
+            -f pr_number=${{ steps.create-pr.outputs.pr_number }}
           
           echo "Triggered runner workflow, waiting for it to start..."
-          sleep 10
+          sleep 15
 
       - name: Wait for runner workflow to complete
         env:
@@ -130,23 +122,28 @@ jobs:
           MAX_WAIT=300  # 5 minutes
           ELAPSED=0
           
+          echo "Waiting for runner workflow to start and complete..."
+          
           while [ $ELAPSED -lt $MAX_WAIT ]; do
-            # Get the latest workflow run
-            RUN_ID=$(gh run list \
+            # Get workflow runs for this PR
+            RUNS=$(gh run list \
               --workflow=test-github-runner.yml \
-              --limit=1 \
-              --json databaseId \
-              --jq '.[0].databaseId')
+              --json databaseId,status,conclusion,headBranch \
+              --jq ".[] | select(.headBranch == \"${{ steps.create-branches.outputs.test_branch }}\")")
             
-            if [ -n "$RUN_ID" ]; then
-              STATUS=$(gh run view "$RUN_ID" --json status --jq '.status')
-              echo "Runner workflow status: $STATUS"
+            if [ -n "$RUNS" ]; then
+              RUN_ID=$(echo "$RUNS" | jq -r '.databaseId' | head -1)
+              STATUS=$(echo "$RUNS" | jq -r '.status' | head -1)
+              
+              echo "Runner workflow (ID: $RUN_ID) status: $STATUS"
               
               if [ "$STATUS" = "completed" ]; then
-                CONCLUSION=$(gh run view "$RUN_ID" --json conclusion --jq '.conclusion')
+                CONCLUSION=$(echo "$RUNS" | jq -r '.conclusion' | head -1)
                 echo "Runner workflow completed with conclusion: $CONCLUSION"
                 break
               fi
+            else
+              echo "Waiting for runner workflow to start..."
             fi
             
             sleep 10
