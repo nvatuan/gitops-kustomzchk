@@ -1,0 +1,42 @@
+policies:
+  service-high-availability:
+    name: Service High Availability
+    description: Ensures deployments meeting high availability criteria
+    type: opa
+    filePath: ha.rego
+
+    enforcement:
+      inEffectAfter: null
+      isWarningAfter: 2025-10-14T00:00:00Z
+      isBlockingAfter: null
+
+      override:
+        comment: "/sp-override-ha"
+
+  service-taggings:
+    name: Service Taggings
+    description: Ensures deployments meeting tagging criteria
+    type: opa
+    filePath: taggings.rego
+
+    enforcement:
+      inEffectAfter: 2025-10-11T00:00:00Z
+      isWarningAfter: 2025-10-12T00:00:00Z
+      isBlockingAfter: 2025-10-12T00:00:00Z
+
+      override:
+        comment: "/sp-override-taggings"
+
+  service-no-cpu-limit:
+    name: Service No CPU Limit
+    description: Ensures deployments meeting no cpu limit criteria
+    type: opa
+    filePath: no_cpu_limit.rego
+
+    enforcement:
+      inEffectAfter: 2025-10-11T00:00:00Z
+      isWarningAfter: null
+      isBlockingAfter: null
+
+      override:
+        comment: "/sp-override-no-cpu-limit"
