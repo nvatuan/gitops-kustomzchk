@@ -1,28 +1,12 @@
 name: Test GitOps Runner (GitHub Mode)
 
 on:
-  workflow_dispatch:
-    inputs:
-      pr_number:
-        description: 'PR number to comment on'
-        required: true
-        type: number
-      service:
-        description: 'Service name'
-        required: true
-        type: string
-      environments:
-        description: 'Comma-separated environments'
-        required: true
-        type: string
-      before_ref:
-        description: 'Git ref for before state'
-        required: true
-        type: string
-      after_ref:
-        description: 'Git ref for after state'
-        required: true
-        type: string
+  pull_request:
+    types: [labeled]
+    paths:
+      - 'test/ut_github/**'
+      - 'src/**'
+      - '.github/workflows/test-github-*.yml'
 
 permissions:
   contents: read
@@ -32,16 +16,18 @@ env:
   GO_VERSION: '1.22'
   KUSTOMIZE_VERSION: '5.3.0'
   CONFTEST_VERSION: '0.63.0'
+  MANIFESTS_PATH: 'test/ut_github'
 
 jobs:
   run-gitops-check:
     name: Run GitOps Check on PR
     runs-on: ubuntu-latest
+    # Only run if PR title starts with "🧪 Integration Test"
+    if: startsWith(github.event.pull_request.title, '🧪 Integration Test')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.after_ref }}
           fetch-depth: 0
 
       - name: Setup Go
@@ -78,21 +64,38 @@ jobs:
       - name: Build gitops-kustomzchk
         run: make build
 
-      - name: Run gitops-kustomzchk in GitHub mode
+      - name: Add tools to PATH
+        run: |
+          echo "/usr/local/bin" >> $GITHUB_PATH
+
+      - name: Run policy check
+        id: run-gitops-kustomzchk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GITHUB_COMMENT_MAX_DIFF_LENGTH: 15000
         run: |
           ./bin/gitops-kustomzchk \
             --run-mode github \
             --gh-repo ${{ github.repository }} \
-            --gh-pr-number ${{ inputs.pr_number }} \
-            --gh-base-ref ${{ inputs.before_ref }} \
-            --gh-head-ref ${{ inputs.after_ref }} \
-            --service ${{ inputs.service }} \
-            --environments ${{ inputs.environments }} \
-            --manifests-path test/ut_github \
-            --policies-path test/ut_github/policies \
-            --templates-path test/ut_github/templates
+            --gh-pr-number ${{ github.event.pull_request.number }} \
+            --manifests-path ${{ env.MANIFESTS_PATH }} \
+            --service my-app \
+            --environments stg,prod \
+            --policies-path ${{ env.MANIFESTS_PATH }}/policies \
+            --templates-path ${{ env.MANIFESTS_PATH }}/templates \
+            --output-dir output \
+            --enable-export-report true \
+            --debug true
+        continue-on-error: false
+
+      - name: Upload report artifact
+        if: steps.run-gitops-kustomzchk.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-my-app
+          path: output/report.json
+          retention-days: 3
 
       - name: Signal completion
         if: always()
