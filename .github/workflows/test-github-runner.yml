@@ -1,8 +1,13 @@
 name: Test GitOps Runner (GitHub Mode)
 
 on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to comment on'
+        required: true
+        type: number
   pull_request:
-    types: [labeled]
     paths:
       - 'test/ut_github/**'
       - 'src/**'
@@ -22,8 +27,8 @@ jobs:
   run-gitops-check:
     name: Run GitOps Check on PR
     runs-on: ubuntu-latest
-    # Only run if PR title starts with "🧪 Integration Test"
-    if: startsWith(github.event.pull_request.title, '🧪 Integration Test')
+    # Only run on workflow_dispatch OR if PR title starts with "🧪 Integration Test"
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.pull_request.title, '🧪 Integration Test')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,6 +73,15 @@ jobs:
         run: |
           echo "/usr/local/bin" >> $GITHUB_PATH
 
+      - name: Determine PR number
+        id: get-pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run policy check
         id: run-gitops-kustomzchk
         env:
@@ -78,7 +92,7 @@ jobs:
           ./bin/gitops-kustomzchk \
             --run-mode github \
             --gh-repo ${{ github.repository }} \
-            --gh-pr-number ${{ github.event.pull_request.number }} \
+            --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
             --manifests-path ${{ env.MANIFESTS_PATH }} \
             --service my-app \
             --environments stg,prod \

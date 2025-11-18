@@ -105,15 +105,14 @@ jobs:
           echo "pr_url=${PR_URL}" >> $GITHUB_OUTPUT
           echo "Created test PR #${PR_NUMBER}: ${PR_URL}"
 
-      - name: Trigger runner by adding label
+      - name: Trigger runner via workflow_dispatch
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_FOR_WORKFLOW_DISPATCH }}
         run: |
-          # Add a dummy label to trigger the runner workflow
-          # The runner workflow triggers on 'labeled' event
-          gh pr edit ${{ steps.create-pr.outputs.pr_number }} --add-label "test-trigger" || true
+          gh workflow run test-github-runner.yml \
+            -f pr_number=${{ steps.create-pr.outputs.pr_number }}
           
-          echo "Added label to trigger runner workflow, waiting for it to start..."
+          echo "Triggered runner workflow, waiting for it to start..."
           sleep 15
 
       - name: Wait for runner workflow to complete
