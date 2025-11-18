@@ -1,5 +1,8 @@
 FEATURES
 - [x] kustomize upload artifact if too long
+- [x] git checkout strategy flag (sparse vs shallow) - PR#2
+  - Fixes cross-service kustomize dependency issues in monorepos
+  - Allows services with external references to use shallow clone
 - [ ] document for policy
 - [ ] Rework the template a bit more
 - [ ] Output the debug log when conftest step is failing, like infoing the stderr of that command.
