@@ -14,5 +14,6 @@ patchesStrategicMerge:
 
 commonLabels:
   environment: stg
+  github.com/nvatuan/domains: "my-app"
 
 namePrefix: stg-
