@@ -98,9 +98,7 @@ jobs:
             --base "${{ steps.create-branches.outputs.base_branch }}" \
             --head "${{ steps.create-branches.outputs.test_branch }}" \
             --title "🧪 Integration Test - $(date +%Y%m%d-%H%M%S)" \
-            --body "Automated integration test for GitHub runner mode. This PR will be closed automatically." \
-            --label "test" \
-            --label "automated")
+            --body "Automated integration test for GitHub runner mode. This PR will be closed automatically.")
           
           PR_NUMBER=$(echo "$PR_URL" | grep -oP '\d+$')
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
