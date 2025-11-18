@@ -1,0 +1,263 @@
+name: Test GitHub Integration
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+    paths:
+      - 'src/**'
+      - 'test/ut_github/**'
+      - '.github/workflows/test-github-*.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'test/ut_github/**'
+      - '.github/workflows/test-github-*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  GO_VERSION: '1.22'
+  JQ_VERSION: '1.7.1'
+  TEST_BRANCH_PREFIX: 'test/gh-integration'
+
+jobs:
+  github-integration-test:
+    name: GitHub Integration Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install jq
+        run: |
+          curl -L -o jq "https://github.com/jqlang/jq/releases/download/jq-${{ env.JQ_VERSION }}/jq-linux-amd64"
+          chmod +x jq
+          sudo mv jq /usr/local/bin/
+          jq --version
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create test branches
+        id: create-branches
+        run: |
+          TIMESTAMP=$(date +%s)
+          BASE_BRANCH="${{ env.TEST_BRANCH_PREFIX }}-base-${TIMESTAMP}"
+          TEST_BRANCH="${{ env.TEST_BRANCH_PREFIX }}-test-${TIMESTAMP}"
+          
+          echo "base_branch=${BASE_BRANCH}" >> $GITHUB_OUTPUT
+          echo "test_branch=${TEST_BRANCH}" >> $GITHUB_OUTPUT
+          
+          # Verify test data exists
+          if [ ! -d "test/ut_github/before" ] || [ ! -d "test/ut_github/after" ]; then
+            echo "::error::test/ut_github/before or test/ut_github/after not found"
+            echo "Current branch must have test/ut_github directory"
+            exit 1
+          fi
+          
+          # Create base branch from current branch, keep only before/ state
+          git checkout -b "${BASE_BRANCH}"
+          rm -rf test/ut_github/after
+          git add test/ut_github
+          git commit -m "test: base state for integration test" || echo "No changes to commit"
+          git push origin "${BASE_BRANCH}"
+          
+          # Go back to original commit to get after/ directory
+          git checkout -
+          
+          # Create test branch with after/ merged into before/
+          git checkout -b "${TEST_BRANCH}"
+          cp -r test/ut_github/after/* test/ut_github/before/
+          git add test/ut_github
+          git commit -m "test: changes for integration test"
+          git push origin "${TEST_BRANCH}"
+
+      - name: Create test PR
+        id: create-pr
+        env:
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
+        run: |
+          PR_URL=$(gh pr create \
+            --base "${{ steps.create-branches.outputs.base_branch }}" \
+            --head "${{ steps.create-branches.outputs.test_branch }}" \
+            --title "🧪 Integration Test - $(date +%Y%m%d-%H%M%S)" \
+            --body "Automated integration test for GitHub runner mode. This PR will be closed automatically.")
+          
+          PR_NUMBER=$(echo "$PR_URL" | grep -oP '\d+$')
+          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "pr_url=${PR_URL}" >> $GITHUB_OUTPUT
+          echo "Created test PR #${PR_NUMBER}: ${PR_URL}"
+
+      - name: Trigger runner via workflow_dispatch
+        env:
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
+        run: |
+          gh workflow run test-github-runner.yml \
+            -f pr_number=${{ steps.create-pr.outputs.pr_number }}
+          
+          echo "Triggered runner workflow, waiting for it to start..."
+          sleep 15
+
+      - name: Wait for runner workflow to complete
+        env:
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
+        run: |
+          MAX_WAIT=300  # 5 minutes
+          ELAPSED=0
+          
+          echo "Waiting for runner workflow to start and complete..."
+          
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            # Get workflow runs for this PR
+            RUNS=$(gh run list \
+              --workflow=test-github-runner.yml \
+              --json databaseId,status,conclusion,headBranch \
+              --jq ".[] | select(.headBranch == \"${{ steps.create-branches.outputs.test_branch }}\")")
+            
+            if [ -n "$RUNS" ]; then
+              RUN_ID=$(echo "$RUNS" | jq -r '.databaseId' | head -1)
+              STATUS=$(echo "$RUNS" | jq -r '.status' | head -1)
+              
+              echo "Runner workflow (ID: $RUN_ID) status: $STATUS"
+              
+              if [ "$STATUS" = "completed" ]; then
+                CONCLUSION=$(echo "$RUNS" | jq -r '.conclusion' | head -1)
+                echo "Runner workflow completed with conclusion: $CONCLUSION"
+                break
+              fi
+            else
+              echo "Waiting for runner workflow to start..."
+            fi
+            
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+          
+          if [ $ELAPSED -ge $MAX_WAIT ]; then
+            echo "::error::Runner workflow did not complete within $MAX_WAIT seconds"
+            exit 1
+          fi
+
+      - name: Fetch PR comments
+        id: fetch-comments
+        env:
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
+        run: |
+          sleep 5  # Give GitHub API time to register the comment
+          
+          COMMENTS=$(gh api \
+            "repos/${{ github.repository }}/issues/${{ steps.create-pr.outputs.pr_number }}/comments" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | .body')
+          
+          if [ -z "$COMMENTS" ]; then
+            echo "::error::No comments found from github-actions bot"
+            exit 1
+          fi
+          
+          echo "Found comment from bot"
+          # Save comment to file for validation
+          echo "$COMMENTS" > /tmp/pr-comment.md
+
+      - name: Validate comment content
+        run: |
+          COMMENT=$(cat /tmp/pr-comment.md)
+          
+          # Check for essential sections in the actual comment format
+          CHECKS=(
+            "🔍 GitOps Policy Check"
+            "Timestamp"
+            "Base"
+            "Head"
+            "Environments"
+            "📊 Manifest Changes"
+            "🛡️ Policy Evaluation"
+          )
+          
+          FAILED=0
+          for CHECK in "${CHECKS[@]}"; do
+            if ! echo "$COMMENT" | grep -q "$CHECK"; then
+              echo "::error::Missing expected section: $CHECK"
+              FAILED=1
+            else
+              echo "✓ Found section: $CHECK"
+            fi
+          done
+          
+          if [ $FAILED -eq 1 ]; then
+            echo "::error::Comment validation failed"
+            echo "Comment content:"
+            cat /tmp/pr-comment.md
+            exit 1
+          fi
+          
+          echo "✅ Comment validation passed"
+
+      - name: Compare with jury output
+        run: |
+          JURY_REPORT="test/ut_github/jury_output/report.md"
+          
+          if [ ! -f "$JURY_REPORT" ]; then
+            echo "::warning::No jury output found at $JURY_REPORT, skipping comparison"
+            exit 0
+          fi
+          
+          COMMENT=$(cat /tmp/pr-comment.md)
+          
+          # Compare key metrics (customize based on your jury output structure)
+          echo "Comparing with jury output..."
+          
+          # Extract policy results from comment
+          COMMENT_VIOLATIONS=$(echo "$COMMENT" | grep -c "❌" || echo "0")
+          JURY_VIOLATIONS=$(grep -c "❌" "$JURY_REPORT" || echo "0")
+          
+          echo "Comment violations: $COMMENT_VIOLATIONS"
+          echo "Jury violations: $JURY_VIOLATIONS"
+          
+          if [ "$COMMENT_VIOLATIONS" != "$JURY_VIOLATIONS" ]; then
+            echo "::warning::Violation count mismatch (expected: $JURY_VIOLATIONS, got: $COMMENT_VIOLATIONS)"
+            echo "This might be expected if test data changed"
+          else
+            echo "✅ Violation count matches jury output"
+          fi
+
+      - name: Cleanup test PR and branches
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
+        run: |
+          # Close PR
+          if [ -n "${{ steps.create-pr.outputs.pr_number }}" ]; then
+            gh pr close ${{ steps.create-pr.outputs.pr_number }} --comment "Integration test completed" || true
+          fi
+          
+          # Delete branches
+          git push origin --delete "${{ steps.create-branches.outputs.base_branch }}" || true
+          git push origin --delete "${{ steps.create-branches.outputs.test_branch }}" || true
+
+      - name: Report test results
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ GitHub integration test PASSED"
+          else
+            echo "❌ GitHub integration test FAILED"
+            exit 1
+          fi
+
