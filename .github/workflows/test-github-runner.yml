@@ -21,7 +21,7 @@ env:
   GO_VERSION: '1.22'
   KUSTOMIZE_VERSION: '5.3.0'
   CONFTEST_VERSION: '0.63.0'
-  MANIFESTS_PATH: 'test/ut_github/services'
+  MANIFESTS_PATH: 'test/ut_github'
 
 jobs:
   run-gitops-check:
@@ -93,7 +93,7 @@ jobs:
             --run-mode github \
             --gh-repo ${{ github.repository }} \
             --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
-            --manifests-path ${{ env.MANIFESTS_PATH }} \
+            --manifests-path ${{ env.MANIFESTS_PATH }}/services \
             --service my-app \
             --environments stg,prod \
             --policies-path ${{ env.MANIFESTS_PATH }}/policies \
