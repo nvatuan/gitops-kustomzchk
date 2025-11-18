@@ -1,0 +1,101 @@
+name: Test GitOps Runner (GitHub Mode)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to comment on'
+        required: true
+        type: number
+      service:
+        description: 'Service name'
+        required: true
+        type: string
+      environments:
+        description: 'Comma-separated environments'
+        required: true
+        type: string
+      before_ref:
+        description: 'Git ref for before state'
+        required: true
+        type: string
+      after_ref:
+        description: 'Git ref for after state'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  GO_VERSION: '1.22'
+  KUSTOMIZE_VERSION: '5.3.0'
+  CONFTEST_VERSION: '0.63.0'
+
+jobs:
+  run-gitops-check:
+    name: Run GitOps Check on PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.after_ref }}
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Cache tools
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/bin/kustomize
+            /usr/local/bin/conftest
+          key: tools-${{ runner.os }}-kustomize-${{ env.KUSTOMIZE_VERSION }}-conftest-${{ env.CONFTEST_VERSION }}
+
+      - name: Install kustomize
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: |
+          curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${{ env.KUSTOMIZE_VERSION }}/kustomize_v${{ env.KUSTOMIZE_VERSION }}_linux_amd64.tar.gz" | tar xz
+          sudo mv kustomize /usr/local/bin/
+          kustomize version
+
+      - name: Install conftest
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: |
+          curl -L -o conftest.tar.gz "https://github.com/open-policy-agent/conftest/releases/download/v${{ env.CONFTEST_VERSION }}/conftest_${{ env.CONFTEST_VERSION }}_Linux_x86_64.tar.gz"
+          tar -xzf conftest.tar.gz
+          chmod +x conftest
+          sudo mv conftest /usr/local/bin/
+          conftest --version
+
+      - name: Build gitops-kustomzchk
+        run: make build
+
+      - name: Run gitops-kustomzchk in GitHub mode
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./bin/gitops-kustomzchk \
+            --run-mode github \
+            --gh-repo ${{ github.repository }} \
+            --gh-pr-number ${{ inputs.pr_number }} \
+            --gh-base-ref ${{ inputs.before_ref }} \
+            --gh-head-ref ${{ inputs.after_ref }} \
+            --service ${{ inputs.service }} \
+            --environments ${{ inputs.environments }} \
+            --manifests-path test/ut_github \
+            --policies-path test/ut_github/policies \
+            --templates-path test/ut_github/templates
+
+      - name: Signal completion
+        if: always()
+        run: |
+          echo "GitOps check completed with status: ${{ job.status }}"
+

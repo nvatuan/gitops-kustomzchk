@@ -1,0 +1,36 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: my-app-keda
+  labels:
+    app: my-app
+spec:
+  scaleTargetRef:
+    name: my-app
+  minReplicaCount: 2
+  maxReplicaCount: 20
+  pollingInterval: 30
+  cooldownPeriod: 300
+  idleReplicaCount: 0
+  triggers:
+  - type: cpu
+    metadata:
+      type: Utilization
+      value: "70"
+  - type: memory
+    metadata:
+      type: Utilization
+      value: "80"
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus.monitoring.svc.cluster.local:9090
+      metricName: http_requests_per_second
+      threshold: '10'
+      query: sum(rate(http_requests_total{job="my-app"}[2m]))
+  - type: kubernetes-workload
+    metadata:
+      podSelector: 'app=my-app'
+      value: '5'
+  fallback:
+    failureThreshold: 3
+    replicas: 2
