@@ -92,7 +92,7 @@ jobs:
       - name: Create test PR
         id: create-pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
         run: |
           PR_URL=$(gh pr create \
             --base "${{ steps.create-branches.outputs.base_branch }}" \
@@ -107,7 +107,7 @@ jobs:
 
       - name: Trigger runner via workflow_dispatch
         env:
-          GH_TOKEN: ${{ secrets.PAT_FOR_WORKFLOW_DISPATCH }}
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
         run: |
           gh workflow run test-github-runner.yml \
             -f pr_number=${{ steps.create-pr.outputs.pr_number }}
@@ -117,7 +117,7 @@ jobs:
 
       - name: Wait for runner workflow to complete
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
         run: |
           MAX_WAIT=300  # 5 minutes
           ELAPSED=0
@@ -158,7 +158,7 @@ jobs:
       - name: Fetch PR comments
         id: fetch-comments
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
         run: |
           sleep 5  # Give GitHub API time to register the comment
           
@@ -238,7 +238,7 @@ jobs:
       - name: Cleanup test PR and branches
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_SIT_TOKEN }}
         run: |
           # Close PR
           if [ -n "${{ steps.create-pr.outputs.pr_number }}" ]; then
