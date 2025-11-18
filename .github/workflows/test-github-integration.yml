@@ -65,14 +65,24 @@ jobs:
           echo "base_branch=${BASE_BRANCH}" >> $GITHUB_OUTPUT
           echo "test_branch=${TEST_BRANCH}" >> $GITHUB_OUTPUT
           
-          # Create base branch from ut_github/before
+          # Verify test data exists
+          if [ ! -d "test/ut_github/before" ] || [ ! -d "test/ut_github/after" ]; then
+            echo "::error::test/ut_github/before or test/ut_github/after not found"
+            echo "Current branch must have test/ut_github directory"
+            exit 1
+          fi
+          
+          # Create base branch from current branch, keep only before/ state
           git checkout -b "${BASE_BRANCH}"
           rm -rf test/ut_github/after
           git add test/ut_github
           git commit -m "test: base state for integration test" || echo "No changes to commit"
           git push origin "${BASE_BRANCH}"
           
-          # Create test branch from ut_github/after
+          # Go back to original commit to get after/ directory
+          git checkout -
+          
+          # Create test branch with after/ merged into before/
           git checkout -b "${TEST_BRANCH}"
           cp -r test/ut_github/after/* test/ut_github/before/
           git add test/ut_github
