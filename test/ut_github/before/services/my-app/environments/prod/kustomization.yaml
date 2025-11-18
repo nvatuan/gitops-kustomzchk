@@ -5,6 +5,7 @@ namespace: my-app-prod
 
 resources:
 - ../../base
+- cronjob.yaml
 
 patchesStrategicMerge:
 - deployment-patch.yaml
