@@ -21,7 +21,7 @@ env:
   GO_VERSION: '1.22'
   KUSTOMIZE_VERSION: '5.3.0'
   CONFTEST_VERSION: '0.63.0'
-  MANIFESTS_PATH: 'test/ut_github'
+  MANIFESTS_PATH: 'test/ut_github/services'
 
 jobs:
   run-gitops-check:
