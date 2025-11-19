@@ -129,10 +129,10 @@ jobs:
           
           # Services that require shallow checkout (cross-service dependencies)
           # Add one service per line
+          # NOTE: my-app-shallow-clone intentionally removed to test sparse failure
           USE_SHALLOW_FOR=$(cat <<'EOF'
-            my-app-shallow-clone
-            serivce-shallow-1
-          EOF
+serivce-shallow-1
+EOF
           )
           
           # Check if service is in the list
