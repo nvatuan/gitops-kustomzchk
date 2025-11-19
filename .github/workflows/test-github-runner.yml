@@ -10,8 +10,6 @@ on:
   pull_request:
     branches:
       - 'test/gh-integration-base-*'
-    paths:
-      - 'test/ut_github/**'
 
 permissions:
   contents: read
