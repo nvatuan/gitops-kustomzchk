@@ -146,14 +146,13 @@ jobs:
           
           # Services that require shallow checkout (cross-service dependencies)
           # Add one service per line
-          # NOTE: my-app-shallow-clone intentionally removed to test sparse failure ##
-          USE_SHALLOW_FOR=$(cat <<'EOF'
-serivce-shallow-1
-EOF
-          )
+          cat > ./tmp.txt <<'EOF'
+            my-app-shallow-clone
+          EOF
           
           # Check if service is in the list
-          if echo "$USE_SHALLOW_FOR" | grep -q "$SERVICE"; then
+          grep -x "$SERVICE" ./tmp.txt
+          if [ $? -eq 0 ]; then
             STRATEGY="shallow"
           else
             STRATEGY="sparse"
