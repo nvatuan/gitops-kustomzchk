@@ -215,11 +215,12 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 			for policyId := range complianceCfg.Policies {
 				policy := complianceCfg.Policies[policyId]
 				policyIdToResult[policyId] = models.PolicyResult{
-					PolicyId:     policyId,
-					PolicyName:   policy.Name,
-					ExternalLink: policy.ExternalLink,
-					IsPassing:    true, // Mark as passing since there's nothing to evaluate
-					FailMessages: []string{},
+					PolicyId:        policyId,
+					PolicyName:      policy.Name,
+					ExternalLink:    policy.ExternalLink,
+					OverrideCommand: policy.Enforcement.Override.Comment,
+					IsPassing:       true, // Mark as passing since there's nothing to evaluate
+					FailMessages:    []string{},
 				}
 			}
 			envToPolicyIdToResult[env] = policyIdToResult
@@ -238,11 +239,12 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 			logger.WithField("policyId", policyId).WithField("failMsgs", failMsgs).Debug("Evaluated policy")
 			policy := complianceCfg.Policies[policyId]
 			polResult := models.PolicyResult{
-				PolicyId:     policyId,
-				PolicyName:   policy.Name,
-				ExternalLink: policy.ExternalLink,
-				IsPassing:    len(failMsgs) == 0,
-				FailMessages: failMsgs,
+				PolicyId:        policyId,
+				PolicyName:      policy.Name,
+				ExternalLink:    policy.ExternalLink,
+				OverrideCommand: policy.Enforcement.Override.Comment,
+				IsPassing:       len(failMsgs) == 0,
+				FailMessages:    failMsgs,
 			}
 			policyIdToResult[policyId] = polResult
 		}
