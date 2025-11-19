@@ -316,11 +316,11 @@ jobs:
         id: comment-github-integration-test
         with:
           header: GitHub Integration Test
-          number: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || needs.check-pr-exists.outputs.pr_number }}
+          number: ${{ needs.check-pr-exists.outputs.pr_number }}
           message: |
             ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
-            **Test PR:** #${{ github.event_name == 'pull_request' && github.event.pull_request.number || needs.check-pr-exists.outputs.pr_number }}
+            **Test PR:** #${{ needs.check-pr-exists.outputs.pr_number }}
             **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
             ### Test Summary
