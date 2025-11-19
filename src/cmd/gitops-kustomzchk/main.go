@@ -64,6 +64,8 @@ It builds kustomize manifests, diffs them, evaluates OPA policies, and posts det
 		"GitHub PR number [github mode]")
 	cmd.Flags().StringVar(&opts.ManifestsPath, "manifests-path", "./services",
 		"Path to services directory containing service folders [github mode]")
+	cmd.Flags().StringVar((*string)(&opts.GitCheckoutStrategy), "git-checkout-strategy", "sparse",
+		"Git checkout strategy: 'sparse' (scope to manifests path, faster) or 'shallow' (all files, depth 1) [github mode]")
 
 	// Local mode flags
 	cmd.Flags().StringVar(&opts.LcBeforeManifestsPath, "lc-before-manifests-path", "",
