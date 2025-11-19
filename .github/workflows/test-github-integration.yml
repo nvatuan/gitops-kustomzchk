@@ -294,7 +294,7 @@ jobs:
           fi
 
       - name: Set test status
-        if: always() && github.event_name == 'pull_request'
+        if: always()
         id: test-status
         run: |
           if [ "${{ job.status }}" == "success" ]; then
@@ -313,7 +313,7 @@ jobs:
           fi
 
       - name: Post results to feature branch PR
-        if: always() && github.event_name == 'pull_request'
+        if: always()
         uses: marocchino/sticky-pull-request-comment@v2
         id: comment-github-integration-test
         with:
