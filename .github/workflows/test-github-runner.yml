@@ -71,7 +71,8 @@ jobs:
           echo "has_changes=true" >> $GITHUB_OUTPUT
           
           # Extract unique service names (5th field in path: test/ut_github/{before|after}/services/SERVICE_NAME/...)
-          SERVICES=$(echo "$SERVICE_CHANGES" | cut -d/ -f5 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          # Exclude common-configmap as it's a shared resource, not a service to test
+          SERVICES=$(echo "$SERVICE_CHANGES" | cut -d/ -f5 | sort -u | grep -v "^common-configmap$" | jq -R -s -c 'split("\n") | map(select(length > 0))')
           
           echo "services=$SERVICES" >> $GITHUB_OUTPUT
           echo "Detected services: $SERVICES"
