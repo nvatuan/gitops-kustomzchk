@@ -8,6 +8,8 @@ on:
         required: true
         type: number
   pull_request:
+    branches:
+      - 'test/gh-integration-base-*'
     paths:
       - 'test/ut_github/after/services/**'
 
