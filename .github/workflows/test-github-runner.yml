@@ -147,12 +147,11 @@ jobs:
           # Services that require shallow checkout (cross-service dependencies)
           # Add one service per line
           cat > ./tmp.txt <<'EOF'
-            my-app-shallow-clone
+          my-app-shallow-clone
           EOF
           
-          # Check if service is in the list
-          grep -x "$SERVICE" ./tmp.txt
-          if [ $? -eq 0 ]; then
+          # Check if service is in the list (grep in if statement is safe from -e)
+          if grep -qx "$SERVICE" ./tmp.txt; then
             STRATEGY="shallow"
           else
             STRATEGY="sparse"
