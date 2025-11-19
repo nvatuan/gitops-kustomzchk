@@ -340,7 +340,7 @@ jobs:
             <details>
             <summary>Test Configuration</summary>
             
-            - **Service:** my-app
+            - **Services:** Auto-detected from test/ut_github/after/services/ changes
             - **Environments:** stg, prod
             - **Base Branch:** `${{ steps.create-branches.outputs.base_branch }}`
             - **Test Branch:** `${{ steps.create-branches.outputs.test_branch }}`
