@@ -1,23 +1,23 @@
 name: Test GitHub Integration
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - 'feature/**'
-    paths:
-      - 'src/**'
-      - 'test/ut_github/**'
-      - '.github/workflows/test-github-*.yml'
+  # push:
+  #   branches:
+  #     - main
+  #     - develop
+  #     - 'feature/**'
+  #   paths:
+  #     - 'src/**'
+  #     - 'test/ut_github/**'
+  #     - '.github/workflows/test-github-*.yml'
   pull_request:
+    types: [synchronize, opened]
     branches:
       - main
     paths:
       - 'src/**'
       - 'test/ut_github/**'
       - '.github/workflows/test-github-*.yml'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -33,36 +33,44 @@ jobs:
   check-pr-exists:
     name: Check if PR exists
     runs-on: ubuntu-latest
-    # Only check on push events, skip for pull_request events
-    if: github.event_name == 'push'
     outputs:
       has_pr: ${{ steps.check.outputs.has_pr }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
     steps:
       - name: Check for open PR
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Check if there's an open PR for this branch
-          PR_COUNT=$(gh pr list --repo ${{ github.repository }} --head ${{ github.ref_name }} --json number --jq 'length')
-          
-          if [ "$PR_COUNT" -gt 0 ]; then
+          # If event is pull_request, use the pull_request.number
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "has_pr=true" >> $GITHUB_OUTPUT
-            echo "Found $PR_COUNT open PR(s) for branch ${{ github.ref_name }}"
-          else
-            echo "has_pr=false" >> $GITHUB_OUTPUT
-            echo "No open PR found for branch ${{ github.ref_name }}"
+            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+            echo "Event is pull_request, extract PR #${{ github.event.pull_request.number }}"
+            exit 0
           fi
+
+          # # Event is push, which is not needed at the moment
+          # # Check if there's an open PR for this branch
+          # PR_COUNT=$(gh pr list --repo ${{ github.repository }} --head ${{ github.ref_name }} --json number --jq 'length')
+          
+          # if [ "$PR_COUNT" -gt 0 ]; then
+          #   echo "has_pr=true" >> $GITHUB_OUTPUT
+          #   echo "pr_number=$(gh pr list --repo ${{ github.repository }} --head ${{ github.ref_name }} --json number --jq '.[0].number')" >> $GITHUB_OUTPUT
+          #   echo "Found $PR_COUNT open PR(s) for branch ${{ github.ref_name }}"
+          # else
+          #   echo "has_pr=false" >> $GITHUB_OUTPUT
+          #   echo "No open PR found for branch ${{ github.ref_name }}"
+          # fi
 
   github-integration-test:
     name: GitHub Integration Test
     runs-on: ubuntu-latest
     needs: [check-pr-exists]
-    # Run if: it's a pull_request event OR (it's a push event AND there's an open PR) OR it's workflow_dispatch
     if: |
-      github.event_name == 'pull_request' || 
-      github.event_name == 'workflow_dispatch' || 
-      (github.event_name == 'push' && needs.check-pr-exists.outputs.has_pr == 'true')
+      always() &&
+      (github.event_name == 'pull_request' || 
+       (github.event_name == 'push' && needs.check-pr-exists.outputs.has_pr == 'true'))
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -318,10 +326,11 @@ jobs:
         id: comment-github-integration-test
         with:
           header: GitHub Integration Test
+          number: ${{ needs.check-pr-exists.outputs.pr_number }}
           message: |
             ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
-            **Test PR:** #${{ steps.create-pr.outputs.pr_number }}
+            **Test PR:** #${{ needs.check-pr-exists.outputs.pr_number }}
             **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
             ### Test Summary
