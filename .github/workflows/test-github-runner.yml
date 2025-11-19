@@ -91,7 +91,7 @@ jobs:
           # Add more services here if needed in each line ends with comma.
           USE_SHALLOW_FOR=$(cat <<'EOF'
           [
-            "my-app-shallow",
+            "my-app",
           ]
           EOF
           )
