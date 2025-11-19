@@ -3,7 +3,7 @@ kind: ScaledObject
 metadata:
   name: my-app-keda
 spec:
-  minReplicaCount: 1
+  minReplicaCount: 4
   maxReplicaCount: 8
   pollingInterval: 15
   cooldownPeriod: 180
