@@ -9,9 +9,7 @@ on:
         type: number
   pull_request:
     paths:
-      - 'test/ut_github/**'
-      - 'src/**'
-      - '.github/workflows/test-github-*.yml'
+      - 'test/ut_github/after/services/**'
 
 permissions:
   contents: read
@@ -24,11 +22,51 @@ env:
   MANIFESTS_PATH: 'test/ut_github'
 
 jobs:
-  run-gitops-check:
-    name: Run GitOps Check on PR
+  detect-changed-services:
+    name: Detect Changed Services
     runs-on: ubuntu-latest
-    # Only run on workflow_dispatch OR if PR title starts with "🧪 Integration Test"
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.pull_request.title, '🧪 Integration Test')
+    if: github.event_name == 'pull_request'
+    outputs:
+      services: ${{ steps.detect.outputs.services }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed services in test/ut_github/after/services
+        id: detect
+        run: |
+          # Get changed files in test/ut_github/after/services/
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^test/ut_github/after/services/" || echo "")
+          
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "services=[]" >> $GITHUB_OUTPUT
+            echo "No changes in test/ut_github/after/services/"
+            exit 0
+          fi
+          
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          
+          # Extract unique service names (directory after services/)
+          SERVICES=$(echo "$CHANGED_FILES" | cut -d/ -f5 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          
+          echo "services=$SERVICES" >> $GITHUB_OUTPUT
+          echo "Detected services: $SERVICES"
+
+  run-gitops-check:
+    name: Run GitOps Check (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: [detect-changed-services]
+    if: |
+      (github.event_name == 'pull_request' && needs.detect-changed-services.outputs.has_changes == 'true') ||
+      github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.detect-changed-services.outputs.services) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -85,12 +123,12 @@ jobs:
       - name: Determine checkout strategy based on service
         id: determine-strategy
         run: |
-          SERVICE="my-app"
+          SERVICE="${{ matrix.service }}"
           
           # Services that require shallow checkout (cross-service dependencies)
           # Add one service per line
           USE_SHALLOW_FOR=$(cat <<'EOF'
-            my-app
+            my-app-shallow-clone
             serivce-shallow-1
           EOF
           )
@@ -103,6 +141,7 @@ jobs:
           fi
           
           echo "strategy=$STRATEGY" >> $GITHUB_OUTPUT
+          echo "service=$SERVICE" >> $GITHUB_OUTPUT
           echo "Using checkout strategy: $STRATEGY for service: $SERVICE"
 
       - name: Run policy check
@@ -118,7 +157,7 @@ jobs:
             --gh-repo ${{ github.repository }} \
             --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
             --manifests-path ${{ env.MANIFESTS_PATH }}/before/services \
-            --service my-app \
+            --service ${{ steps.determine-strategy.outputs.service }} \
             --environments stg,prod \
             --policies-path ${{ env.MANIFESTS_PATH }}/policies \
             --templates-path ${{ env.MANIFESTS_PATH }}/templates \
@@ -131,12 +170,12 @@ jobs:
         if: steps.run-gitops-kustomzchk.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: report-my-app
+          name: report-${{ steps.determine-strategy.outputs.service }}
           path: output/report.json
           retention-days: 3
 
       - name: Signal completion
         if: always()
         run: |
-          echo "GitOps check completed with status: ${{ job.status }}"
+          echo "GitOps check (${{ matrix.service }}) completed with status: ${{ job.status }}"
 
