@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Cross-service dependency: reference common-configmap from another service directory
+resources:
+- deployment.yaml
+- service.yaml
+- ../../common-configmap
+
+commonLabels:
+  app: my-app-shallow
+  team: platform
+
