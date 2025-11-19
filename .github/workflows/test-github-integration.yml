@@ -11,6 +11,8 @@ on:
       - 'test/ut_github/**'
       - '.github/workflows/test-github-*.yml'
   pull_request:
+    branches:
+      - main
     paths:
       - 'src/**'
       - 'test/ut_github/**'
