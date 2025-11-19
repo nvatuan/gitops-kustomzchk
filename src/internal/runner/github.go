@@ -204,14 +204,14 @@ func (r *RunnerGitHub) Process() error {
 
 	logger.Info("Process: starting...")
 
-	logger.WithField("repo", r.options.GhRepo).WithField("branch", r.prInfo.BaseRef).Debug("Process: Calling SparseCheckoutAtPath for base commit")
+	logger.WithField("repo", r.options.GhRepo).WithField("branch", r.prInfo.BaseRef).Debug("Process: Calling CheckoutAtPath for base commit")
 	_, checkoutBaseSpan := trace.StartSpan(ctx, "GitCheckout.Base")
 	beforePathToSparseCheckout := filepath.Join(r.options.ManifestsPath, r.options.Service)
-	checkedOutBeforePath, err := r.ghclient.SparseCheckoutAtPath(
-		r.Context, r.options.GhRepo, r.prInfo.BaseRef, beforePathToSparseCheckout)
+	checkedOutBeforePath, err := r.ghclient.CheckoutAtPath(
+		r.Context, r.options.GhRepo, r.prInfo.BaseRef, beforePathToSparseCheckout, string(r.options.GitCheckoutStrategy))
 	if err != nil {
 		checkoutBaseSpan.End()
-		return fmt.Errorf("failed to sparse checkout base commit: %w", err)
+		return fmt.Errorf("failed to checkout base commit: %w", err)
 	}
 	checkoutBaseSpan.End()
 	defer func() {
@@ -219,15 +219,15 @@ func (r *RunnerGitHub) Process() error {
 	}()
 	beforePath := filepath.Join(checkedOutBeforePath, r.options.ManifestsPath, r.options.Service)
 
-	logger.WithField("repo", r.options.GhRepo).WithField("headRef", r.prInfo.HeadRef).Info("Sparse checking out manifests")
+	logger.WithField("repo", r.options.GhRepo).WithField("headRef", r.prInfo.HeadRef).Info("Checking out manifests")
 	_, checkoutHeadSpan := trace.StartSpan(ctx, "GitCheckout.Head")
 
 	afterPathToSparseCheckout := filepath.Join(r.options.ManifestsPath, r.options.Service)
-	checkedOutAfterPath, err := r.ghclient.SparseCheckoutAtPath(
-		r.Context, r.options.GhRepo, r.prInfo.HeadRef, afterPathToSparseCheckout)
+	checkedOutAfterPath, err := r.ghclient.CheckoutAtPath(
+		r.Context, r.options.GhRepo, r.prInfo.HeadRef, afterPathToSparseCheckout, string(r.options.GitCheckoutStrategy))
 	if err != nil {
 		checkoutHeadSpan.End()
-		return fmt.Errorf("failed to sparse checkout head commit: %w", err)
+		return fmt.Errorf("failed to checkout head commit: %w", err)
 	}
 	checkoutHeadSpan.End()
 	defer func() {
