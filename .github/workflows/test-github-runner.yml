@@ -147,7 +147,6 @@ jobs:
           my-app-shallow-clone
           EOF
           
-          # Check if service is in the list (use || true to prevent exit on no match)
           if grep -qx "$SERVICE" ./tmp.txt; then
             STRATEGY="shallow"
           else
