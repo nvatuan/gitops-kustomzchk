@@ -282,10 +282,10 @@ jobs:
 
       - name: Post results to feature branch PR
         if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: thollander/actions-comment-pull-request@v2
         with:
-          script: |
-            const body = `## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
+          message: |
+            ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
             **Test PR:** #${{ steps.create-pr.outputs.pr_number }}
             **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
@@ -306,14 +306,7 @@ jobs:
             
             - **Service:** my-app
             - **Environments:** stg, prod
-            - **Base Branch:** \`${{ steps.create-branches.outputs.base_branch }}\`
-            - **Test Branch:** \`${{ steps.create-branches.outputs.test_branch }}\`
-            </details>`;
-            
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: body
-            });
+            - **Base Branch:** `${{ steps.create-branches.outputs.base_branch }}`
+            - **Test Branch:** `${{ steps.create-branches.outputs.test_branch }}`
+            </details>
 
