@@ -8,7 +8,7 @@ spec:
     spec:
       containers:
       - name: my-app
-        image: nginx:1.21
+        image: nginx:latest
         env:
         - name: ENVIRONMENT
           value: "production"
@@ -20,7 +20,6 @@ spec:
             cpu: "500m"
           limits:
             memory: "512Mi"
-            cpu: "1000m"
         livenessProbe:
           httpGet:
             path: /
