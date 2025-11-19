@@ -283,7 +283,9 @@ jobs:
       - name: Post results to feature branch PR
         if: always() && github.event_name == 'pull_request'
         uses: marocchino/sticky-pull-request-comment@v2
+        id: comment-github-integration-test
         with:
+          header: GitHub Integration Test
           message: |
             ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
