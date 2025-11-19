@@ -3,5 +3,5 @@ kind: Deployment
 metadata:
   name: my-app-shallow
 spec:
-  replicas: 2
+  replicas: 3
 
