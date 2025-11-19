@@ -24,6 +24,66 @@
 
 <details> <summary> Failing Policies Details: </summary>
 
+{{- if or (gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.TotalErrored 0) (gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.TotalErrored 0) }}
+
+### 🔥 ERRORED Policies (Evaluation Failure)
+
+##### [`stg`] environment 
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.BlockingErroredCount 0 }}
+**🚫 BLOCKING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.BlockingPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.WarningErroredCount 0 }}
+**⚠️ WARNING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.WarningPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.RecommendErroredCount 0 }}
+**💡 RECOMMEND:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.RecommendPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if and (eq .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.BlockingErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.WarningErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.RecommendErroredCount 0) }}
+* None! 🙌
+{{- end}}
+
+##### [`prod`] environment 
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.BlockingErroredCount 0 }}
+**🚫 BLOCKING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.BlockingPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.WarningErroredCount 0 }}
+**⚠️ WARNING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.WarningPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.RecommendErroredCount 0 }}
+**💡 RECOMMEND:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.RecommendPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if and (eq .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.BlockingErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.WarningErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.RecommendErroredCount 0) }}
+* None! 🙌
+{{- end}}
+
+{{end}}
+
 #### 🚫 BLOCKING Policies |{{range $env, $sum := .PolicyEvaluation.EnvironmentSummary}} `{{$env}}`: `{{$sum.PolicyCounts.BlockingFailedCount}}`❌ |{{end}}
 
 _These policies are enforced to protect the stability of the platform. Failing for these policies will prevent your PR from merging. Please reach out to Service Platform Team on Slack if you believe there was a mistake._

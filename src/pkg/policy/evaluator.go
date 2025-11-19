@@ -215,12 +215,13 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 			for policyId := range complianceCfg.Policies {
 				policy := complianceCfg.Policies[policyId]
 				policyIdToResult[policyId] = models.PolicyResult{
-					PolicyId:        policyId,
-					PolicyName:      policy.Name,
-					ExternalLink:    policy.ExternalLink,
-					OverrideCommand: policy.Enforcement.Override.Comment,
-					IsPassing:       true, // Mark as passing since there's nothing to evaluate
-					FailMessages:    []string{},
+					PolicyId:         policyId,
+					PolicyName:       policy.Name,
+					ExternalLink:     policy.ExternalLink,
+					OverrideCommand:  policy.Enforcement.Override.Comment,
+					IsPassing:        true, // Mark as passing since there's nothing to evaluate
+					EvaluationStatus: "pass",
+					FailMessages:     []string{},
 				}
 			}
 			envToPolicyIdToResult[env] = policyIdToResult
@@ -230,22 +231,40 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 		logger.WithField("env", env).Info("Evaluating policies for environment")
 		policyIdToResult := make(map[string]models.PolicyResult)
 
-		failMsgs, err := e.Evaluate(ctx, manifest.AfterManifest)
+		evalResults, err := e.Evaluate(ctx, manifest.AfterManifest)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate policy for environment %s: %w", env, err)
 		}
 
-		for policyId, failMsgs := range failMsgs {
-			logger.WithField("policyId", policyId).WithField("failMsgs", failMsgs).Debug("Evaluated policy")
+		for policyId, evalResult := range evalResults {
+			logger.WithField("policyId", policyId).WithField("status", evalResult.Status).Debug("Evaluated policy")
 			policy := complianceCfg.Policies[policyId]
+
 			polResult := models.PolicyResult{
-				PolicyId:        policyId,
-				PolicyName:      policy.Name,
-				ExternalLink:    policy.ExternalLink,
-				OverrideCommand: policy.Enforcement.Override.Comment,
-				IsPassing:       len(failMsgs) == 0,
-				FailMessages:    failMsgs,
+				PolicyId:         policyId,
+				PolicyName:       policy.Name,
+				ExternalLink:     policy.ExternalLink,
+				OverrideCommand:  policy.Enforcement.Override.Comment,
+				IsPassing:        len(evalResult.FailMessages) == 0,
+				FailMessages:     evalResult.FailMessages,
+				EvaluationStatus: evalResult.Status,
+				ConfTestStdout:   evalResult.Stdout,
+				ConfTestStderr:   evalResult.Stderr,
 			}
+
+			switch evalResult.Status {
+			case "pass":
+				polResult.IsPassing = true
+				polResult.FailMessages = []string{}
+			case "fail":
+				polResult.IsPassing = false
+				polResult.FailMessages = evalResult.FailMessages
+			case "error":
+				polResult.IsPassing = false
+				polResult.ErrorMessage = evalResult.ErrorMessage
+				polResult.FailMessages = []string{}
+			}
+
 			policyIdToResult[policyId] = polResult
 		}
 
@@ -266,9 +285,10 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 	for env := range envManifests {
 		logger.WithField("env", env).Info("Crafting policy evaluation for environment")
 
-		totalCnt, failedCnt, omittedCnt, successCnt := 0, 0, 0, 0
+		totalCnt, failedCnt, erroredCnt, omittedCnt, successCnt := 0, 0, 0, 0, 0
 		blockingSuccessCnt, warningSuccessCnt, recommendSuccessCnt, overriddenSuccessCnt, notInEffectSuccessCnt := 0, 0, 0, 0, 0
 		blockingFailedCnt, warningFailedCnt, recommendFailedCnt, overriddenFailedCnt, notInEffectFailedCnt := 0, 0, 0, 0, 0
+		blockingErroredCnt, warningErroredCnt, recommendErroredCnt, overriddenErroredCnt, notInEffectErroredCnt := 0, 0, 0, 0, 0
 
 		blockingPolicies := []models.PolicyResult{}
 		warningPolicies := []models.PolicyResult{}
@@ -277,51 +297,70 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 		notInEffectPolicies := []models.PolicyResult{}
 		for policyId, result := range envToPolicyIdToResult[env] {
 			totalCnt++
-			if result.IsPassing {
+
+			// Count based on evaluation status
+			switch result.EvaluationStatus {
+			case "pass":
 				successCnt++
+			case "fail":
+				failedCnt++
+			case "error":
+				erroredCnt++
 			}
 
 			enforcementLevel := policyIdToEnforcementLevel[policyId]
 			switch enforcementLevel {
 			case POLICY_LEVEL_BLOCK:
 				blockingPolicies = append(blockingPolicies, result)
-				if !result.IsPassing {
-					blockingFailedCnt++
-					failedCnt++
-				} else {
+				switch result.EvaluationStatus {
+				case "pass":
 					blockingSuccessCnt++
+				case "fail":
+					blockingFailedCnt++
+				case "error":
+					blockingErroredCnt++
 				}
 			case POLICY_LEVEL_WARNING:
 				warningPolicies = append(warningPolicies, result)
-				if !result.IsPassing {
-					warningFailedCnt++
-					failedCnt++
-				} else {
+				switch result.EvaluationStatus {
+				case "pass":
 					warningSuccessCnt++
+				case "fail":
+					warningFailedCnt++
+				case "error":
+					warningErroredCnt++
 				}
 			case POLICY_LEVEL_RECOMMEND:
 				recommendPolicies = append(recommendPolicies, result)
-				if !result.IsPassing {
-					recommendFailedCnt++
-					failedCnt++
-				} else {
+				switch result.EvaluationStatus {
+				case "pass":
 					recommendSuccessCnt++
+				case "fail":
+					recommendFailedCnt++
+				case "error":
+					recommendErroredCnt++
 				}
 			case POLICY_LEVEL_OVERRIDE:
 				overriddenPolicies = append(overriddenPolicies, result)
-				if !result.IsPassing {
-					overriddenFailedCnt++
-					omittedCnt++
-				} else {
+				omittedCnt++
+				switch result.EvaluationStatus {
+				case "pass":
 					overriddenSuccessCnt++
+				case "fail":
+					overriddenFailedCnt++
+				case "error":
+					overriddenErroredCnt++
 				}
 			case POLICY_LEVEL_NOT_IN_EFFECT:
 				notInEffectPolicies = append(notInEffectPolicies, result)
-				if !result.IsPassing {
-					notInEffectFailedCnt++
-					omittedCnt++
-				} else {
+				omittedCnt++
+				switch result.EvaluationStatus {
+				case "pass":
 					notInEffectSuccessCnt++
+				case "fail":
+					notInEffectFailedCnt++
+				case "error":
+					notInEffectErroredCnt++
 				}
 			case POLICY_LEVEL_UNKNOWN:
 				logger.Warnf("policy %s: unknown enforcement level: %s", policyId, enforcementLevel)
@@ -337,28 +376,34 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 
 		results.EnvironmentSummary[env] = models.EnvironmentSummaryEnv{
 			PassingStatus: models.EnforcementPassingStatus{
-				PassBlockingCheck:  blockingFailedCnt == 0,
-				PassWarningCheck:   warningFailedCnt == 0,
-				PassRecommendCheck: recommendFailedCnt == 0,
+				PassBlockingCheck:  blockingFailedCnt == 0 && blockingErroredCnt == 0,
+				PassWarningCheck:   warningFailedCnt == 0 && warningErroredCnt == 0,
+				PassRecommendCheck: recommendFailedCnt == 0 && recommendErroredCnt == 0,
 			},
 			PolicyCounts: models.PolicyCounts{
 				TotalCount:          totalCnt,
 				TotalSuccess:        successCnt,
 				TotalFailed:         failedCnt,
+				TotalErrored:        erroredCnt,
 				TotalOmitted:        omittedCnt,
 				TotalOmittedFailed:  overriddenFailedCnt + notInEffectFailedCnt,
 				TotalOmittedSuccess: overriddenSuccessCnt + notInEffectSuccessCnt,
 
 				BlockingSuccessCount:    blockingSuccessCnt,
 				BlockingFailedCount:     blockingFailedCnt,
+				BlockingErroredCount:    blockingErroredCnt,
 				WarningSuccessCount:     warningSuccessCnt,
 				WarningFailedCount:      warningFailedCnt,
+				WarningErroredCount:     warningErroredCnt,
 				RecommendSuccessCount:   recommendSuccessCnt,
 				RecommendFailedCount:    recommendFailedCnt,
+				RecommendErroredCount:   recommendErroredCnt,
 				OverriddenSuccessCount:  overriddenSuccessCnt,
 				OverriddenFailedCount:   overriddenFailedCnt,
+				OverriddenErroredCount:  overriddenErroredCnt,
 				NotInEffectSuccessCount: notInEffectSuccessCnt,
 				NotInEffectFailedCount:  notInEffectFailedCnt,
+				NotInEffectErroredCount: notInEffectErroredCnt,
 			},
 		}
 	}
@@ -367,13 +412,13 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 }
 
 // Evaluate evaluates all policies against the manifest using conftest and store the evaluation results in the EvaluatorData
-// returns: policyId -> failure messages
+// returns: policyId -> models.PolicyEvalResult
 func (e *PolicyEvaluator) Evaluate(
 	ctx context.Context,
 	manifest []byte,
-) (map[string][]string, error) {
+) (map[string]models.PolicyEvalResult, error) {
 	logger.Info("Evaluate: starting...")
-	results := make(map[string][]string)
+	results := make(map[string]models.PolicyEvalResult)
 
 	// Write manifest to temporary file for conftest
 	tmpFile, err := os.CreateTemp("", "manifest-*.yaml")
@@ -397,25 +442,22 @@ func (e *PolicyEvaluator) Evaluate(
 
 	// Evaluate each policy using conftest
 	for id := range e.data.ComplianceConfig.Policies {
-		failMsgs, err := e.evaluatePolicyWithConftest(
+		evalResult := e.evaluatePolicyWithConftest(
 			ctx, id, e.data.fullPathToPolicy[id], tmpFile.Name(),
 		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate policy %s: %w", id, err)
-		}
-		results[id] = failMsgs
+		results[id] = evalResult
 	}
 
 	return results, nil
 }
 
 // evaluatePolicyWithConftest evaluates a single policy using conftest
-// returns: failureMsgs, evalError
+// returns: models.PolicyEvalResult
 func (e *PolicyEvaluator) evaluatePolicyWithConftest(
 	ctx context.Context,
 	id string,
 	singlePolicyPath string, manifestPath string,
-) ([]string, error) {
+) models.PolicyEvalResult {
 	logger.Infof("evaluating policy %s", id)
 
 	cmd := exec.CommandContext(ctx,
@@ -425,9 +467,40 @@ func (e *PolicyEvaluator) evaluatePolicyWithConftest(
 		"-o", "json",
 	)
 
-	// If policy eval not passing, the program exit with code 1, we will omit error here
-	outputBytes, _ := cmd.CombinedOutput()
-	logger.Debugf("conftest output: %s", string(outputBytes))
+	// Separate stdout and stderr
+	var stdout, stderr strings.Builder
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// Run the command and capture exit code
+	cmdErr := cmd.Run()
+	stdoutStr := stdout.String()
+	stderrStr := stderr.String()
+
+	logger.Debugf("conftest stdout: %s", stdoutStr)
+	if stderrStr != "" {
+		logger.Debugf("conftest stderr: %s", stderrStr)
+	}
+
+	// Check if conftest binary execution failed (not just policy failures)
+	// Note: conftest exits with code 1 when policies fail, but still outputs valid JSON
+	// It exits with other codes when there's an actual error (e.g., invalid policy syntax)
+	if cmdErr != nil {
+		if exitErr, ok := cmdErr.(*exec.ExitError); ok && exitErr.ExitCode() != 1 {
+			// Non-1 exit code indicates actual error (not policy failure)
+			errMsg := fmt.Sprintf("conftest execution error (exit code %d): %v", exitErr.ExitCode(), cmdErr)
+			logger.Errorf("Policy %s: %s", id, errMsg)
+			logger.Errorf("Policy %s stdout: %s", id, stdoutStr)
+			logger.Errorf("Policy %s stderr: %s", id, stderrStr)
+			return models.PolicyEvalResult{
+				Status:       "error",
+				ErrorMessage: errMsg,
+				Stdout:       stdoutStr,
+				Stderr:       stderrStr,
+			}
+		}
+		// Exit code 1 is normal for policy failures, continue to parse JSON
+	}
 
 	// Sample conftest output
 	// 	[
@@ -456,13 +529,34 @@ func (e *PolicyEvaluator) evaluatePolicyWithConftest(
 			}
 		}
 	}{}
-	if err := json.Unmarshal(outputBytes, &outputJson); err != nil {
-		return nil, fmt.Errorf("failed to parse conftest output: %w", err)
+
+	if err := json.Unmarshal([]byte(stdoutStr), &outputJson); err != nil {
+		// JSON parsing failed - this is an error condition
+		errMsg := fmt.Sprintf("failed to parse conftest JSON output: %v", err)
+		logger.Errorf("Policy %s: %s", id, errMsg)
+		logger.Errorf("Policy %s stdout: %s", id, stdoutStr)
+		logger.Errorf("Policy %s stderr: %s", id, stderrStr)
+		return models.PolicyEvalResult{
+			Status:       "error",
+			ErrorMessage: errMsg,
+			Stdout:       stdoutStr,
+			Stderr:       stderrStr,
+		}
 	}
 
 	if len(outputJson) == 0 {
-		return nil, fmt.Errorf("no results found in conftest output: %s", string(outputBytes))
+		errMsg := "no results found in conftest output"
+		logger.Errorf("Policy %s: %s", id, errMsg)
+		logger.Errorf("Policy %s stdout: %s", id, stdoutStr)
+		logger.Errorf("Policy %s stderr: %s", id, stderrStr)
+		return models.PolicyEvalResult{
+			Status:       "error",
+			ErrorMessage: errMsg,
+			Stdout:       stdoutStr,
+			Stderr:       stderrStr,
+		}
 	}
+
 	// Success case: [
 	// 	 {
 	// 			"filename": "Combined",
@@ -471,14 +565,23 @@ func (e *PolicyEvaluator) evaluatePolicyWithConftest(
 	//	 }
 	// ]
 	if len(outputJson[0].Failures) == 0 {
-		return []string{}, nil
+		return models.PolicyEvalResult{
+			Status: "pass",
+			Stdout: stdoutStr,
+			Stderr: stderrStr,
+		}
 	}
 
 	failureMsgs := []string{}
 	for _, failure := range outputJson[0].Failures {
 		failureMsgs = append(failureMsgs, failure.Msg)
 	}
-	return failureMsgs, nil
+	return models.PolicyEvalResult{
+		Status:       "fail",
+		FailMessages: failureMsgs,
+		Stdout:       stdoutStr,
+		Stderr:       stderrStr,
+	}
 }
 
 // DetermineEnforcementLevel determines the current enforcement level based on time and overrides

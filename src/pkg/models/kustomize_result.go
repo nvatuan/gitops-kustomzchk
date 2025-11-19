@@ -19,7 +19,15 @@ type PolicyEvaluateResult struct {
 type PolicyEnvEvaluateResult struct {
 	Environment string
 
-	// if key exists, value is not empty => failed
-	// if key exists, value empty => passed
-	PolicyIdToEvalFailMsgs map[string][]string
+	// Maps policy ID to evaluation result
+	PolicyIdToEvalResult map[string]PolicyEvalResult
+}
+
+// PolicyEvalResult represents the result of evaluating a single policy with conftest
+type PolicyEvalResult struct {
+	Status       string   // "pass", "fail", or "error"
+	FailMessages []string // Policy violation messages (for "fail" status)
+	ErrorMessage string   // Error details (for "error" status)
+	Stdout       string   // conftest stdout (for debugging)
+	Stderr       string   // conftest stderr (for debugging)
 }
