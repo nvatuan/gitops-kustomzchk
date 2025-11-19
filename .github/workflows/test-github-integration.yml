@@ -163,26 +163,30 @@ jobs:
           ELAPSED=0
           
           echo "Waiting for runner workflow to start and complete..."
+          echo "Looking for workflow_dispatch run for PR #${{ steps.create-pr.outputs.pr_number }}"
+          
+          # Wait a bit for the workflow to be created
+          sleep 10
           
           while [ $ELAPSED -lt $MAX_WAIT ]; do
-            # Get the latest workflow_dispatch run
+            # Get recent workflow_dispatch runs (last 5) and find the most recent one
             RUN_DATA=$(gh run list \
               --workflow=test-github-runner.yml \
               --event workflow_dispatch \
-              --branch ${{ github.ref_name }} \
-              --limit 1 \
-              --json databaseId,status,conclusion,url)
+              --limit 5 \
+              --json databaseId,status,conclusion,url,createdAt \
+              --jq "sort_by(.createdAt) | reverse | .[0]")
             
-            if [ -n "$RUN_DATA" ] && [ "$RUN_DATA" != "[]" ]; then
-              RUN_ID=$(echo "$RUN_DATA" | jq -r '.[0].databaseId')
-              STATUS=$(echo "$RUN_DATA" | jq -r '.[0].status')
-              RUN_URL=$(echo "$RUN_DATA" | jq -r '.[0].url')
+            if [ -n "$RUN_DATA" ] && [ "$RUN_DATA" != "null" ]; then
+              RUN_ID=$(echo "$RUN_DATA" | jq -r '.databaseId')
+              STATUS=$(echo "$RUN_DATA" | jq -r '.status')
+              RUN_URL=$(echo "$RUN_DATA" | jq -r '.url')
               
               echo "Runner workflow (ID: $RUN_ID) status: $STATUS"
               echo "URL: $RUN_URL"
               
               if [ "$STATUS" = "completed" ]; then
-                CONCLUSION=$(echo "$RUN_DATA" | jq -r '.[0].conclusion')
+                CONCLUSION=$(echo "$RUN_DATA" | jq -r '.conclusion')
                 echo "Runner workflow completed with conclusion: $CONCLUSION"
                 break
               fi
