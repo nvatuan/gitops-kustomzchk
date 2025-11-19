@@ -330,7 +330,7 @@ jobs:
           message: |
             ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
-            **Test PR:** #${{ needs.check-pr-exists.outputs.pr_number }}
+            **Test PR:** #${{ steps.create-pr.outputs.pr_number }}
             **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
             ### Test Summary
