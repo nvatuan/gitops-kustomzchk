@@ -88,16 +88,15 @@ jobs:
           SERVICE="my-app"
           
           # Services that require shallow checkout (cross-service dependencies)
-          # Add more services here if needed in each line ends with comma.
+          # Add one service per line
           USE_SHALLOW_FOR=$(cat <<'EOF'
-          [
-            "my-app",
-          ]
+            my-app
+            serivce-shallow-1
           EOF
           )
-
+          
           # Check if service is in the list
-          if echo "$USE_SHALLOW_FOR" | jq -e --arg svc "$SERVICE" 'index($svc)' > /dev/null; then
+          if echo "$USE_SHALLOW_FOR" | grep -q "$SERVICE"; then
             STRATEGY="shallow"
           else
             STRATEGY="sparse"
