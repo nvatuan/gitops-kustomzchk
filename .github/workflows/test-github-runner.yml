@@ -7,9 +7,12 @@ on:
         description: 'PR number to comment on'
         required: true
         type: number
+<<<<<<< Updated upstream
   pull_request:
     branches:
       - 'test/gh-integration-base-*'
+=======
+>>>>>>> Stashed changes
 
 permissions:
   contents: read
@@ -25,33 +28,56 @@ jobs:
   detect-changed-services:
     name: Detect Changed Services
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     outputs:
       services: ${{ steps.detect.outputs.services }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
     steps:
-      - name: Checkout code
+      - name: Get PR details
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get PR base and head refs
+          PR_DATA=$(gh api repos/${{ github.repository }}/pulls/${{ inputs.pr_number }})
+          BASE_REF=$(echo "$PR_DATA" | jq -r '.base.ref')
+          HEAD_REF=$(echo "$PR_DATA" | jq -r '.head.ref')
+          
+          echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
+          echo "head_ref=$HEAD_REF" >> $GITHUB_OUTPUT
+          echo "PR #${{ inputs.pr_number }}: $BASE_REF <- $HEAD_REF"
+
+      - name: Checkout PR head
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.pr-info.outputs.head_ref }}
           fetch-depth: 0
 
-      - name: Detect changed services in test/ut_github/after/services
+      - name: Detect changed services from PR diff
         id: detect
         run: |
-          # Get changed files in test/ut_github/after/services/
-          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^test/ut_github/after/services/" || echo "")
+          # Fetch base ref
+          git fetch origin ${{ steps.pr-info.outputs.base_ref }}
           
-          if [ -z "$CHANGED_FILES" ]; then
+          # Get changed files between base and head
+          CHANGED_FILES=$(git diff --name-only origin/${{ steps.pr-info.outputs.base_ref }}...HEAD || echo "")
+          
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          
+          # Filter for changes in test/ut_github services (either before/ or after/)
+          SERVICE_CHANGES=$(echo "$CHANGED_FILES" | grep "^test/ut_github/\(before\|after\)/services/" || echo "")
+          
+          if [ -z "$SERVICE_CHANGES" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
             echo "services=[]" >> $GITHUB_OUTPUT
-            echo "No changes in test/ut_github/after/services/"
+            echo "No service changes detected"
             exit 0
           fi
           
           echo "has_changes=true" >> $GITHUB_OUTPUT
           
-          # Extract unique service names (directory after services/)
-          SERVICES=$(echo "$CHANGED_FILES" | cut -d/ -f5 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          # Extract unique service names (5th field in path: test/ut_github/{before|after}/services/SERVICE_NAME/...)
+          SERVICES=$(echo "$SERVICE_CHANGES" | cut -d/ -f5 | sort -u | jq -R -s -c 'split("\n") | map(select(length > 0))')
           
           echo "services=$SERVICES" >> $GITHUB_OUTPUT
           echo "Detected services: $SERVICES"
@@ -60,9 +86,7 @@ jobs:
     name: Run GitOps Check (${{ matrix.service }})
     runs-on: ubuntu-latest
     needs: [detect-changed-services]
-    if: |
-      (github.event_name == 'pull_request' && needs.detect-changed-services.outputs.has_changes == 'true') ||
-      github.event_name == 'workflow_dispatch'
+    if: needs.detect-changed-services.outputs.has_changes == 'true'
     strategy:
       fail-fast: false
       matrix:
