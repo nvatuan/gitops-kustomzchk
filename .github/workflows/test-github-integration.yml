@@ -37,6 +37,7 @@ jobs:
     if: github.event_name == 'push'
     outputs:
       has_pr: ${{ steps.check.outputs.has_pr }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
     steps:
       - name: Check for open PR
         id: check
@@ -48,6 +49,7 @@ jobs:
           
           if [ "$PR_COUNT" -gt 0 ]; then
             echo "has_pr=true" >> $GITHUB_OUTPUT
+            echo "pr_number=$(gh pr list --repo ${{ github.repository }} --head ${{ github.ref_name }} --json number --jq '.[0].number')" >> $GITHUB_OUTPUT
             echo "Found $PR_COUNT open PR(s) for branch ${{ github.ref_name }}"
           else
             echo "has_pr=false" >> $GITHUB_OUTPUT
@@ -318,10 +320,11 @@ jobs:
         id: comment-github-integration-test
         with:
           header: GitHub Integration Test
+          number: ${{ needs.check-pr-exists.outputs.pr_number }}
           message: |
             ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
-            **Test PR:** #${{ steps.create-pr.outputs.pr_number }}
+            **Test PR:** #${{ needs.check-pr-exists.outputs.pr_number }}
             **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
             ### Test Summary
