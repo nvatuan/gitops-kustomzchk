@@ -82,6 +82,29 @@ jobs:
             echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine checkout strategy based on service
+        id: determine-strategy
+        run: |
+          SERVICE="my-app"
+          
+          # Services that require shallow checkout (cross-service dependencies)
+          # Add one service per line
+          USE_SHALLOW_FOR=$(cat <<'EOF'
+            my-app
+            serivce-shallow-1
+          EOF
+          )
+          
+          # Check if service is in the list
+          if echo "$USE_SHALLOW_FOR" | grep -q "$SERVICE"; then
+            STRATEGY="shallow"
+          else
+            STRATEGY="sparse"
+          fi
+          
+          echo "strategy=$STRATEGY" >> $GITHUB_OUTPUT
+          echo "Using checkout strategy: $STRATEGY for service: $SERVICE"
+
       - name: Run policy check
         id: run-gitops-kustomzchk
         env:
@@ -91,6 +114,7 @@ jobs:
         run: |
           ./bin/gitops-kustomzchk \
             --run-mode github \
+            --git-checkout-strategy ${{ steps.determine-strategy.outputs.strategy }} \
             --gh-repo ${{ github.repository }} \
             --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
             --manifests-path ${{ env.MANIFESTS_PATH }}/before/services \

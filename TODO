@@ -1,7 +1,15 @@
 FEATURES
 - [x] kustomize upload artifact if too long
+- [x] git checkout strategy flag (sparse vs shallow) - PR#2
+  - Fixes cross-service kustomize dependency issues in monorepos
+  - Allows services with external references to use shallow clone
 - [ ] document for policy
 - [ ] Rework the template a bit more
+- [ ] Output the debug log when conftest step is failing, like infoing the stderr of that command.
+  - Currently if conftest command fail, it will give "Error: running test: check combined: check: ..." which is not a JSON and will fail when program try to parse it.
+  - Err: failed to process: failed to evaluate policy for environment prod: failed to evaluate policy warn-pdb-zero-disruption: failed to parse conftest output: invalid character 'E' looking for beginning of value
+  - It's better to also print stderr of conftest here, in case our OPA Policy is wrong.
+  - Replicate PR: https://github.com/moneyforward/k8s-service-manifests/pull/177922
 
 MAINTENANCE
 - [ ] unit testings and coverage
