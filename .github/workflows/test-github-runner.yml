@@ -133,11 +133,8 @@ jobs:
       - name: Determine PR number
         id: get-pr
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
-          else
-            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-          fi
+          echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+
 
       - name: Determine checkout strategy based on service
         id: determine-strategy
@@ -150,7 +147,6 @@ jobs:
           my-app-shallow-clone
           EOF
           
-          # Check if service is in the list (grep in if statement is safe from -e)
           if grep -qx "$SERVICE" ./tmp.txt; then
             STRATEGY="shallow"
           else
