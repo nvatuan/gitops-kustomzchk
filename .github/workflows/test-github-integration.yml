@@ -261,3 +261,47 @@ jobs:
             exit 1
           fi
 
+      - name: Set test status
+        if: always() && github.event_name == 'pull_request'
+        id: test-status
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "emoji=✅" >> $GITHUB_OUTPUT
+            echo "text=PASSED" >> $GITHUB_OUTPUT
+          else
+            echo "emoji=❌" >> $GITHUB_OUTPUT
+            echo "text=FAILED" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check validation status
+          if [ -f /tmp/pr-comment.md ]; then
+            echo "validation=✅ Passed" >> $GITHUB_OUTPUT
+          else
+            echo "validation=❌ Failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post results to feature branch PR
+        if: always() && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        id: comment-github-integration-test
+        with:
+          header: GitHub Integration Test
+          message: |
+            ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
+            
+            **Test PR:** #${{ steps.create-pr.outputs.pr_number }}
+            **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            
+            ### Test Summary
+            - **Comment Validation:** ${{ steps.test-status.outputs.validation }}
+            - **Jury Output Comparison:** See workflow logs for details
+            
+            <details>
+            <summary>Test Configuration</summary>
+            
+            - **Service:** my-app
+            - **Environments:** stg, prod
+            - **Base Branch:** `${{ steps.create-branches.outputs.base_branch }}`
+            - **Test Branch:** `${{ steps.create-branches.outputs.test_branch }}`
+            </details>
+
