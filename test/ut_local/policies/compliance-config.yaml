@@ -4,6 +4,7 @@ policies:
     description: Ensures deployments meeting high availability criteria
     type: opa
     filePath: ha.rego
+    externalLink: https://example.com/docs/high-availability
 
     enforcement:
       inEffectAfter: null
@@ -40,3 +41,31 @@ policies:
 
       override:
         comment: "/sp-override-no-cpu-limit"
+
+  service-pod-minimum-replicas-required:
+    name: Service Pod Minimum Replicas Required
+    description: Ensures deployments meeting pod minimum replicas required criteria
+    type: opa
+    filePath: folder/pod_minimum_replicas_required.rego
+
+    enforcement:
+      inEffectAfter: 2025-10-11T00:00:00Z
+      isWarningAfter: null
+      isBlockingAfter: null
+
+      override:
+        comment: "/sp-override-pod-min-replicas"
+
+  service-persistent-volume-forbidden:
+    name: Service Persistent Volume Forbidden
+    description: Ensures PersistentVolume and PersistentVolumeClaim resources are forbidden
+    type: opa
+    filePath: folder/pv_forbidden.rego
+
+    enforcement:
+      inEffectAfter: null
+      isWarningAfter: null
+      isBlockingAfter: 2025-10-11T00:00:00Z
+
+      override:
+        comment: null

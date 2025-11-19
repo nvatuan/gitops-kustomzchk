@@ -2,7 +2,7 @@
 
 | Timestamp | Base | Head | Environments |
 -|-|-|-
-2025-10-29 02:40:54 UTC | base | head | `stg`, `prod`
+2025-11-20 03:38:14 UTC | base | head | `stg`, `prod`
 
 ## 📊 Manifest Changes
 
@@ -14,8 +14,8 @@
 
 
 ```diff
---- before	2025-10-29 02:40:54
-+++ after	2025-10-29 02:40:54
+--- before	2025-11-20 03:38:13
++++ after	2025-11-20 03:38:13
 @@ -48,7 +48,7 @@
            value: production
          - name: LOG_LEVEL
@@ -100,8 +100,8 @@
 
 
 ```diff
---- before	2025-10-29 02:40:54
-+++ after	2025-10-29 02:40:54
+--- before	2025-11-20 03:38:13
++++ after	2025-11-20 03:38:13
 @@ -4,6 +4,7 @@
    labels:
      app: my-app
@@ -204,19 +204,22 @@
 
 ## 🛡️ Policy Evaluation
 
-| **Environments** | **Success** | **Omitted** | **Failed** | **Failed (Blocking)** | **Failed (Warning)** | **Failed (Recommend)** |
-|--------------|---------|---------|--------|---------|---------|---------|
-| `prod` | `1`✅ | `0`⏭️ | `2`❌ | `1`🚫 | `1`⚠️ | `0`💡 |
-| `stg` | `1`✅ | `0`⏭️ | `2`❌ | `0`🚫 | `1`⚠️ | `1`💡 |
+| **Environments** | **Success** | **Omitted** | **Failed (Blocking 🚫, Warning ⚠️, Recommend 💡)** |
+|--------------|---------|---------|--------|
+| `prod` | `2`✅ | `0`⏭️ | `3`❌ (`1`🚫, `1`⚠️, `1`💡) |
+| `stg` | `3`✅ | `0`⏭️ | `2`❌ (`0`🚫, `1`⚠️, `1`💡) |
 
 
 <details> <summary> Policy Evaluation Matrix: </summary>
 
-| Policy Name | stg | prod |
-|-------------|-----|------|
-| Service Taggings | ✅ PASS | ❌ FAIL |
-| Service High Availability | ❌ FAIL | ❌ FAIL |
-| Service No CPU Limit | ❌ FAIL | ✅ PASS |
+| Policy Name | Level | stg | prod | [Override Command](https://example.com/docs/high-availability) |
+|-------------|-------|-----|------|------------------|
+| Service Persistent Volume Forbidden | 🚫 | ✅ PASS | ✅ PASS | Not allowed |
+| Service Taggings | 🚫 | ✅ PASS | ❌ FAIL | `/sp-override-taggings` |
+| [Service High Availability](https://example.com/docs/high-availability) | ⚠️ | ❌ FAIL | ❌ FAIL | `/sp-override-ha` |
+| Service Pod Minimum Replicas Required | 💡 | ✅ PASS | ❌ FAIL | `/sp-override-pod-min-replicas` |
+| Service No CPU Limit | 💡 | ❌ FAIL | ✅ PASS | `/sp-override-no-cpu-limit` |
+
 
 </details>
 
@@ -224,10 +227,13 @@
 
 #### 🚫 BLOCKING Policies | `prod`: `1`❌ | `stg`: `0`❌ |
 
+_These policies are enforced to protect the stability of the platform. Failing for these policies will prevent your PR from merging. Please reach out to Service Platform Team on Slack if you believe there was a mistake._
+
 ##### [`stg`] environment
 * None! 🙌
 
-##### [`prod`] environment 
+
+##### [`prod`] environment
 
 
 * Policy `Service Taggings` failed with the following messages:
@@ -238,7 +244,10 @@
 
 
 #### ⚠️ WARNING Policies |  `prod`: `1`❌ | `stg`: `1`❌ |
-##### [`stg`] environment 
+
+_These policies mean they are in effect and are being enforced. Evaluation failure will cause the CI/CD to fail, but you can still merge it._
+
+##### [`stg`] environment
 
 
 * Policy `Service High Availability` failed with the following messages:
@@ -246,7 +255,8 @@
 
 
 
-##### [`prod`] environment 
+
+##### [`prod`] environment
 
 
 * Policy `Service High Availability` failed with the following messages:
@@ -255,8 +265,11 @@
 
 
 
-#### 💡 RECOMMEND Policies |  `prod`: `0`❌ | `stg`: `1`❌ |
-##### [`stg`] environment 
+#### 💡 RECOMMEND Policies |  `prod`: `1`❌ | `stg`: `1`❌ |
+
+_These policies mean they are in effect and not being enforced or have yet to be enforced. They serve as a recommendation for actions to be taken._
+
+##### [`stg`] environment
 
 
 * Policy `Service No CPU Limit` failed with the following messages:
@@ -266,10 +279,17 @@
 
 
 ##### [`prod`] environment
-* None! 🙌
+
+
+* Policy `Service Pod Minimum Replicas Required` failed with the following messages:
+  * Resource prod-hello-world-cronjob in namespace my-app-prod has no singleton annotation. Add annotation: service-platform.moneyforward.com/singleton-resource: "true"
+
+
 
 
 #### ⏭️ Omitted Policies |  `prod`: `0`❌ | `stg`: `0`❌ |
+
+_These policies mean they are not yet in effect, or have been overridden._
 
 ##### [`stg`] environment
 * None! 🙌
@@ -280,4 +300,3 @@
 
 
 </details>
-
