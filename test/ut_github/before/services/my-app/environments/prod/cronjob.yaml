@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hello-world-cronjob
+  namespace: default
+spec:
+  schedule: "0 */12 * * *"  # Every 12 hours
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello-world
+            image: busybox:1.35
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "hello world"
+              sleep 1800  # 30 minutes = 1800 seconds
+              echo "shutting down"
+          restartPolicy: Never
+      backoffLimit: 0
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
