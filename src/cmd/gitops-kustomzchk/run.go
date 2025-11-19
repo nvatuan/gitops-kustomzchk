@@ -128,6 +128,14 @@ func validateOptions(opts *runner.Options) error {
 		if opts.GhPrNumber == 0 {
 			return fmt.Errorf("github mode requires --gh-pr-number")
 		}
+		// Validate git checkout strategy
+		if opts.GitCheckoutStrategy == "" {
+			opts.GitCheckoutStrategy = runner.GitCheckoutStrategySparse // default
+		}
+		if opts.GitCheckoutStrategy != runner.GitCheckoutStrategySparse &&
+			opts.GitCheckoutStrategy != runner.GitCheckoutStrategyShallow {
+			return fmt.Errorf("git-checkout-strategy must be 'sparse' or 'shallow', got: %s", opts.GitCheckoutStrategy)
+		}
 	}
 
 	return nil
