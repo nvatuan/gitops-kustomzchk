@@ -93,7 +93,7 @@ jobs:
             --run-mode github \
             --gh-repo ${{ github.repository }} \
             --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
-            --manifests-path ${{ env.MANIFESTS_PATH }}/services \
+            --manifests-path ${{ env.MANIFESTS_PATH }}/before/services \
             --service my-app \
             --environments stg,prod \
             --policies-path ${{ env.MANIFESTS_PATH }}/policies \
