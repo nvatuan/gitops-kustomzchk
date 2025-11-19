@@ -17,7 +17,6 @@ on:
       - 'src/**'
       - 'test/ut_github/**'
       - '.github/workflows/test-github-*.yml'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -33,10 +32,9 @@ jobs:
   check-pr-exists:
     name: Check if PR exists
     runs-on: ubuntu-latest
-    # Only check on push events, skip for pull_request events
-    if: github.event_name == 'push'
     outputs:
       has_pr: ${{ steps.check.outputs.has_pr }}
+      pr_number: ${{ steps.check.outputs.pr_number }}
     steps:
       - name: Check for open PR
         id: check
@@ -48,6 +46,7 @@ jobs:
           
           if [ "$PR_COUNT" -gt 0 ]; then
             echo "has_pr=true" >> $GITHUB_OUTPUT
+            echo "pr_number=$(gh pr list --repo ${{ github.repository }} --head ${{ github.ref_name }} --json number --jq '.[0].number')" >> $GITHUB_OUTPUT
             echo "Found $PR_COUNT open PR(s) for branch ${{ github.ref_name }}"
           else
             echo "has_pr=false" >> $GITHUB_OUTPUT
@@ -58,11 +57,10 @@ jobs:
     name: GitHub Integration Test
     runs-on: ubuntu-latest
     needs: [check-pr-exists]
-    # Run if: it's a pull_request event OR (it's a push event AND there's an open PR) OR it's workflow_dispatch
     if: |
-      github.event_name == 'pull_request' || 
-      github.event_name == 'workflow_dispatch' || 
-      (github.event_name == 'push' && needs.check-pr-exists.outputs.has_pr == 'true')
+      always() &&
+      (github.event_name == 'pull_request' || 
+       (github.event_name == 'push' && needs.check-pr-exists.outputs.has_pr == 'true'))
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -318,10 +316,11 @@ jobs:
         id: comment-github-integration-test
         with:
           header: GitHub Integration Test
+          number: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || needs.check-pr-exists.outputs.pr_number }}
           message: |
             ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
-            **Test PR:** #${{ steps.create-pr.outputs.pr_number }}
+            **Test PR:** #${{ github.event_name == 'pull_request' && github.event.pull_request.number || needs.check-pr-exists.outputs.pr_number }}
             **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
             ### Test Summary

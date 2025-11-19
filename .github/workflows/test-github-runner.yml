@@ -25,10 +25,14 @@ env:
 
 jobs:
   run-gitops-check:
-    name: Run GitOps Check on PR
+    name: Run GitOps Check (${{ matrix.strategy }})
     runs-on: ubuntu-latest
     # Only run on workflow_dispatch OR if PR title starts with "🧪 Integration Test"
     if: github.event_name == 'workflow_dispatch' || startsWith(github.event.pull_request.title, '🧪 Integration Test')
+    strategy:
+      fail-fast: false
+      matrix:
+        strategy: ['sparse', 'shallow']
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,7 +86,7 @@ jobs:
             echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run policy check
+      - name: Run policy check with ${{ matrix.strategy }} strategy
         id: run-gitops-kustomzchk
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -91,6 +95,7 @@ jobs:
         run: |
           ./bin/gitops-kustomzchk \
             --run-mode github \
+            --git-checkout-strategy ${{ matrix.strategy }} \
             --gh-repo ${{ github.repository }} \
             --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
             --manifests-path ${{ env.MANIFESTS_PATH }}/before/services \
@@ -98,7 +103,7 @@ jobs:
             --environments stg,prod \
             --policies-path ${{ env.MANIFESTS_PATH }}/policies \
             --templates-path ${{ env.MANIFESTS_PATH }}/templates \
-            --output-dir output \
+            --output-dir output-${{ matrix.strategy }} \
             --enable-export-report true \
             --debug true
         continue-on-error: false
@@ -107,12 +112,11 @@ jobs:
         if: steps.run-gitops-kustomzchk.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: report-my-app
-          path: output/report.json
+          name: report-my-app-${{ matrix.strategy }}
+          path: output-${{ matrix.strategy }}/report.json
           retention-days: 3
 
       - name: Signal completion
         if: always()
         run: |
-          echo "GitOps check completed with status: ${{ job.status }}"
-
+          echo "GitOps check (${{ matrix.strategy }}) completed with status: ${{ job.status }}"
