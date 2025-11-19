@@ -206,8 +206,8 @@ func (r *RunnerBase) EvaluatePolicies(mf *models.BuildManifestResult) (*models.P
 			logger.WithField("env", envResult.Environment).WithField("reason", envResult.SkipReason).Info("Skipping policy evaluation for environment")
 			// Store empty result to indicate it was skipped
 			results.EnvPolicyEvaluate[envResult.Environment] = models.PolicyEnvEvaluateResult{
-				Environment:            envResult.Environment,
-				PolicyIdToEvalFailMsgs: make(map[string][]string),
+				Environment:          envResult.Environment,
+				PolicyIdToEvalResult: make(map[string]models.PolicyEvalResult),
 			}
 			envSpan.End()
 			continue
@@ -215,14 +215,14 @@ func (r *RunnerBase) EvaluatePolicies(mf *models.BuildManifestResult) (*models.P
 
 		// only evaluate the after manifest
 		envManifest := envResult.AfterManifest
-		failMsgs, err := r.Evaluator.Evaluate(ctx, envManifest)
+		evalResults, err := r.Evaluator.Evaluate(ctx, envManifest)
 		if err != nil {
 			envSpan.End()
 			return nil, err
 		}
 		results.EnvPolicyEvaluate[envResult.Environment] = models.PolicyEnvEvaluateResult{
-			Environment:            envResult.Environment,
-			PolicyIdToEvalFailMsgs: failMsgs,
+			Environment:          envResult.Environment,
+			PolicyIdToEvalResult: evalResults,
 		}
 
 		envSpan.End()
