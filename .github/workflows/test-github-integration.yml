@@ -17,7 +17,6 @@ on:
       - 'src/**'
       - 'test/ut_github/**'
       - '.github/workflows/test-github-*.yml'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -33,8 +32,6 @@ jobs:
   check-pr-exists:
     name: Check if PR exists
     runs-on: ubuntu-latest
-    # Only check on push events, skip for pull_request events
-    if: github.event_name == 'push'
     outputs:
       has_pr: ${{ steps.check.outputs.has_pr }}
       pr_number: ${{ steps.check.outputs.pr_number }}
@@ -63,7 +60,6 @@ jobs:
     if: |
       always() &&
       (github.event_name == 'pull_request' || 
-       github.event_name == 'workflow_dispatch' || 
        (github.event_name == 'push' && needs.check-pr-exists.outputs.has_pr == 'true'))
     steps:
       - name: Checkout code
@@ -324,7 +320,7 @@ jobs:
           message: |
             ## ${{ steps.test-status.outputs.emoji }} GitHub Integration Test ${{ steps.test-status.outputs.text }}
             
-            **Test PR:** #${{ steps.create-pr.outputs.pr_number }}
+            **Test PR:** #${{ github.event_name == 'pull_request' && github.event.pull_request.number || needs.check-pr-exists.outputs.pr_number }}
             **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
             
             ### Test Summary
