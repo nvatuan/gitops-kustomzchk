@@ -294,13 +294,6 @@ jobs:
             - **Comment Validation:** ${{ steps.test-status.outputs.validation }}
             - **Jury Output Comparison:** See workflow logs for details
             
-            ### Test Coverage
-            - Created test branches and PR
-            - Triggered gitops-kustomzchk runner
-            - Validated PR comment structure
-            - Compared results with expected output
-            - Cleaned up test artifacts
-            
             <details>
             <summary>Test Configuration</summary>
             
