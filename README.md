@@ -9,17 +9,20 @@ GitOps policy enforcement tool for Kubernetes manifests managed with Kustomize.
 
 ## Overview
 
-`gitops-kustomz` is designed to run in GitHub Actions CI on Pull Requests. It analyzes Kubernetes manifest changes managed with Kustomize, enforces OPA policies, and provides detailed feedback via PR comments.
+`gitops-kustomzchk` is designed to run in GitHub Actions CI on Pull Requests for an opinionated gitops k8s manifest flow. It will, sequentially, build Kubernetes manifest changes with Kustomize, evaluate against list of OPA policies, and provides detailed report, and it can also comment that on a GitHub PR.
 
-## Features
 
-- 🔍 **Kustomize Build & Diff**: Builds manifests from base and head branches, generates clear diffs
-- 📋 **Policy Enforcement**: Evaluates OPA policies with configurable enforcement levels (RECOMMEND/WARNING/BLOCK)
-- 💬 **GitHub Integration**: Posts detailed policy reports and diffs as PR comments
-- 🔗 **Policy Documentation**: Add external links to policies for easy access to documentation
-- 📊 **Enhanced Policy Matrix**: View all policies with enforcement levels in a comprehensive table
-- 🧪 **Local Testing**: Test policies locally without GitHub PR
-- 📈 **Performance Tracing**: Optional performance reports with detailed timing for each step
+<p align="center">
+  <img src="docs/gitops-kustomzchk-flow.png" alt="gitops-kustomzchk flow overview" width="500"/>
+</p>
+
+
+## Requirements
+
+- Go 1.22+
+- `kustomize` binary in PATH
+- `conftest` binary in PATH (for OPA policy evaluation)
+- GitHub token with PR comment permissions (for CI mode)
 
 ## Quick Start
 
@@ -169,30 +172,6 @@ policies:
 - [docs/DESIGN.md](./docs/DESIGN_sonnet.md) - Detailed design and implementation specs
 - [docs/TEMPLATE_VARIABLES.md](./docs/TEMPLATE_VARIABLES.md) - **Template variables and functions reference**
 - [LOCAL_TESTING.md](./LOCAL_TESTING.md) - Local testing guide
-
-## Requirements
-
-- Go 1.22+
-- `kustomize` binary in PATH
-- `conftest` binary in PATH (for OPA policy evaluation)
-- GitHub token with PR comment permissions (for CI mode)
-
-## Environment Variables
-
-### GitHub Mode
-- `GH_TOKEN` or `GITHUB_TOKEN` - GitHub personal access token with PR comment permissions (required)
-- `GITHUB_RUN_ID` or `GH_RUN_ID` - GitHub Actions run ID (auto-set by GitHub Actions, used for artifact URLs)
-
-### Optional Configuration
-- `LOGLEVEL` - Log level for the application (default: `info`, options: `debug`, `info`, `warn`, `error`)
-- `DEBUG` - Enable debug mode (set to `1` or `true`)
-- `GH_MAX_COMMENT_LENGTH` - Maximum length for inline diffs in PR comments (default: `10000` characters). Diffs exceeding this limit will be uploaded as artifacts.
-
-## Installation
-
-```bash
-go install github.com/gh-nvat/gitops-kustomz@latest
-```
 
 ## Development
 

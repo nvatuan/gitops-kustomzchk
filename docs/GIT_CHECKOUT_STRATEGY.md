@@ -59,9 +59,9 @@ jobs:
             checkout-strategy: sparse
           
           # Services with cross-service deps use shallow
-          - service: payable
+          - service: my-app2
             checkout-strategy: shallow
-          - service: camid
+          - service: my-app3
             checkout-strategy: shallow
     
     steps:
@@ -73,26 +73,6 @@ jobs:
             --service ${{ matrix.service }} \
             # ... other flags
 ```
-
-## Common Error Patterns
-
-### When to Switch from `sparse` to `shallow`
-
-If you see an error like:
-
-```
-Error: accumulating resources: ... 
-lstat /path/to/services/other-service: no such file or directory
-```
-
-This indicates your service has kustomize references to `other-service` which wasn't included in the sparse checkout. Switch to `--git-checkout-strategy shallow`.
-
-### Performance Considerations
-
-| Strategy | Clone Time | Disk Usage | Best For |
-|----------|------------|------------|----------|
-| `sparse` | Fast (~5-10s) | Minimal (~10MB) | Self-contained services |
-| `shallow` | Slower (~30-60s) | Larger (~500MB+) | Services with cross-deps |
 
 ## Implementation Details
 
@@ -108,15 +88,6 @@ git checkout <branch>
 git clone --depth 1 --single-branch -b <branch> <url> <dir>
 ```
 
-## Migration Guide
-
-If you're managing a service manifest repository:
-
-1. **Default behavior:** All services use `sparse` by default
-2. **Identify problematic services:** Look for kustomize build failures with "no such file or directory"
-3. **Update workflow:** Add `checkout-strategy: shallow` to the matrix for those services
-4. **Test:** Verify the build succeeds with the shallow strategy
-
 ## FAQ
 
 **Q: Can I use sparse with cross-service dependencies?**
@@ -130,4 +101,11 @@ A: No. The `--git-checkout-strategy` flag only applies to GitHub mode. Local mod
 
 **Q: What if I'm not sure which strategy to use?**
 A: Start with `sparse` (default). If you encounter "no such file or directory" errors during kustomize build, switch to `shallow`.
+
+```
+Error: accumulating resources: ... 
+lstat /path/to/services/other-service: no such file or directory
+```
+
+This indicates your service has kustomize references to `other-service` which wasn't included in the sparse checkout. Switch to `--git-checkout-strategy shallow`.
 
