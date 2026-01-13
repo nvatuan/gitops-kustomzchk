@@ -40,10 +40,18 @@ It builds kustomize manifests, diffs them, evaluates OPA policies, and posts det
 	// Run mode
 	cmd.Flags().StringVar(&opts.RunMode, "run-mode", "github", "Run mode: github or local")
 
-	// Common flags
-	cmd.Flags().StringVar(&opts.Service, "service", "", "Service name (required)")
+	// === New dynamic path flags (v0.5+) - RECOMMENDED ===
+	cmd.Flags().StringVar(&opts.KustomizeBuildPath, "kustomize-build-path", "",
+		"Path template with $VARIABLES (e.g., 'services/$SERVICE/clusters/$CLUSTER/$ENV')")
+	cmd.Flags().StringVar(&opts.KustomizeBuildValues, "kustomize-build-values", "",
+		"Variable values: 'KEY=v1,v2;KEY2=v3' (e.g., 'SERVICE=my-app;CLUSTER=alpha;ENV=stg,prod')")
+
+	// === Legacy flags (v0.4 backward compatibility) ===
+	cmd.Flags().StringVar(&opts.Service, "service", "", "Service name [DEPRECATED: use --kustomize-build-path]")
 	cmd.Flags().StringSliceVar(&opts.Environments, "environments", []string{},
-		"Environments to check (comma-separated, e.g., stg,prod) (required)")
+		"Environments to check (comma-separated) [DEPRECATED: use --kustomize-build-values]")
+
+	// Common flags
 	cmd.Flags().StringVar(&opts.PoliciesPath, "policies-path", "./policies",
 		"Path to policies directory (contains compliance-config.yaml)")
 	cmd.Flags().StringVar(&opts.TemplatesPath, "templates-path", "./templates",
@@ -73,9 +81,8 @@ It builds kustomize manifests, diffs them, evaluates OPA policies, and posts det
 	cmd.Flags().StringVar(&opts.LcAfterManifestsPath, "lc-after-manifests-path", "",
 		"Path to after/head services directory [local mode]")
 
-	// Mark required flags
-	_ = cmd.MarkFlagRequired("service")
-	_ = cmd.MarkFlagRequired("environments")
+	// NOTE: No required flags - validation done in validateOptions()
+	// This allows either legacy (--service + --environments) OR new (--kustomize-build-path + --kustomize-build-values)
 
 	return cmd
 }

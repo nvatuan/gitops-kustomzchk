@@ -101,18 +101,47 @@ func run(ctx context.Context, opts *runner.Options) error {
 }
 
 func validateOptions(opts *runner.Options) error {
-	// Validate common options
-	if opts.Service == "" {
-		return fmt.Errorf("service is required")
-	}
-
-	if len(opts.Environments) == 0 {
-		return fmt.Errorf("at least one environment is required")
-	}
-
 	// Validate run mode
 	if opts.RunMode != "github" && opts.RunMode != "local" {
 		return fmt.Errorf("run-mode must be 'github' or 'local', got: %s", opts.RunMode)
+	}
+
+	// Check which flag set is being used
+	useDynamic := opts.KustomizeBuildPath != "" || opts.KustomizeBuildValues != ""
+	useLegacy := opts.Service != "" || len(opts.Environments) > 0
+
+	// Validate that one set of flags is used, not both
+	if useDynamic && useLegacy {
+		return fmt.Errorf("cannot mix legacy flags (--service, --environments) with new flags (--kustomize-build-path, --kustomize-build-values)")
+	}
+
+	// Validate that at least one set is provided
+	if !useDynamic && !useLegacy {
+		return fmt.Errorf("must provide either:\n  - New flags: --kustomize-build-path and --kustomize-build-values\n  - Legacy flags: --service and --environments")
+	}
+
+	// Validate dynamic path flags
+	if useDynamic {
+		if opts.KustomizeBuildPath == "" {
+			return fmt.Errorf("--kustomize-build-path is required when using dynamic paths")
+		}
+		if opts.KustomizeBuildValues == "" {
+			return fmt.Errorf("--kustomize-build-values is required when using dynamic paths")
+		}
+		// Initialize PathBuilder
+		if err := opts.InitializePathBuilder(); err != nil {
+			return fmt.Errorf("invalid kustomize build configuration: %w", err)
+		}
+	}
+
+	// Validate legacy flags
+	if useLegacy {
+		if opts.Service == "" {
+			return fmt.Errorf("--service is required when using legacy flags")
+		}
+		if len(opts.Environments) == 0 {
+			return fmt.Errorf("--environments is required when using legacy flags")
+		}
 	}
 
 	// Validate mode-specific options

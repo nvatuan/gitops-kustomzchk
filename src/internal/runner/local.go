@@ -59,8 +59,17 @@ func (r *RunnerLocal) Process() error {
 
 	logger.Info("Process: starting...")
 
-	beforePath := filepath.Join(r.Options.LcBeforeManifestsPath, r.Options.Service)
-	afterPath := filepath.Join(r.Options.LcAfterManifestsPath, r.Options.Service)
+	var beforePath, afterPath string
+	if r.Options.UseDynamicPaths() {
+		// Dynamic mode: use the before/after paths directly as roots
+		beforePath = r.Options.LcBeforeManifestsPath
+		afterPath = r.Options.LcAfterManifestsPath
+	} else {
+		// Legacy mode: append service name to paths
+		beforePath = filepath.Join(r.Options.LcBeforeManifestsPath, r.Options.Service)
+		afterPath = filepath.Join(r.Options.LcAfterManifestsPath, r.Options.Service)
+	}
+
 	rs, err := r.BuildManifests(beforePath, afterPath)
 	if err != nil {
 		return err
@@ -82,20 +91,49 @@ func (r *RunnerLocal) Process() error {
 	evalSpan.End()
 	logger.WithField("results", policyEval).Debug("Evaluated Policies")
 
-	reportData := models.ReportData{
-		Service:          r.Options.Service,
-		Timestamp:        time.Now(),
-		BaseCommit:       "base",
-		HeadCommit:       "head",
-		Environments:     r.Options.Environments,
-		ManifestChanges:  diffs,
-		PolicyEvaluation: *policyEval,
-	}
+	// Build report data
+	reportData := r.buildReportData(rs, diffs, policyEval)
 
 	if err := r.Output(&reportData); err != nil {
 		return err
 	}
 	return nil
+}
+
+// buildReportData constructs the ReportData based on legacy or dynamic mode
+func (r *RunnerLocal) buildReportData(
+	rs *models.BuildManifestResult,
+	diffs map[string]models.EnvironmentDiff,
+	policyEval *models.PolicyEvaluation,
+) models.ReportData {
+	reportData := models.ReportData{
+		Timestamp:        time.Now(),
+		BaseCommit:       "base",
+		HeadCommit:       "head",
+		ManifestChanges:  diffs,
+		PolicyEvaluation: *policyEval,
+	}
+
+	if r.Options.UseDynamicPaths() {
+		// Dynamic mode
+		reportData.KustomizeBuildPath = r.Options.KustomizeBuildPath
+		reportData.KustomizeBuildValues = r.Options.KustomizeBuildValues
+
+		// Extract overlay keys from results
+		overlayKeys := make([]string, 0, len(rs.EnvManifestBuild))
+		for key := range rs.EnvManifestBuild {
+			overlayKeys = append(overlayKeys, key)
+		}
+		reportData.OverlayKeys = overlayKeys
+		reportData.Environments = overlayKeys // For backward compat in templates
+	} else {
+		// Legacy mode
+		reportData.Service = r.Options.Service
+		reportData.Environments = r.Options.Environments
+		reportData.OverlayKeys = r.Options.Environments // For consistency
+	}
+
+	return reportData
 }
 
 func (r *RunnerLocal) Output(data *models.ReportData) error {
