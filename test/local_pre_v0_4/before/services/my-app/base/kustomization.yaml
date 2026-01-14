@@ -4,8 +4,10 @@ kind: Kustomization
 resources:
 - deployment.yaml
 - service.yaml
+- ingress.yaml
+- hpa.yaml
+- keda-scaledobject.yaml
 
 commonLabels:
   app: my-app
   version: v1.0.0
-

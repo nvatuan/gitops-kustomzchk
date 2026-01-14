@@ -56,16 +56,29 @@ run: build
 # Usage: DEBUG=1 make run-local (enable debug logging)
 # Usage: LOGLEVEL=debug make run-local (set log level)
 # Usage: DEBUG=1 LOGLEVEL=trace make run-local (both debug and trace logging)
-run-local: build
+run-local-old: build
 	DEBUG=1 ${BIN_DIR}/${BINARY_NAME} --run-mode local \
 		--service my-app \
 		--environments stg,prod \
 		--fail-on-overlay-not-found=false \
-		--lc-before-manifests-path test/local/before/services \
-		--lc-after-manifests-path test/local/after/services \
+		--lc-before-manifests-path test/local_pre_v0_4/before/services \
+		--lc-after-manifests-path test/local_pre_v0_4/after/services \
+		--policies-path test/local_pre_v0_4/policies \
+		--templates-path test/local_pre_v0_4/templates \
+		--output-dir test/local_pre_v0_4/output \
+		--enable-export-report true \
+		--enable-export-performance-report true \
+		--debug true;
+
+run-local: build
+	DEBUG=1 ${BIN_DIR}/${BINARY_NAME} --run-mode local \
+		--fail-on-overlay-not-found=false \
+		--lc-before-kustomize-build-path "test/local/before/services/my-app/clusters/[CLUSTER]/[ENV]" \
+		--lc-after-kustomize-build-path "test/local/after/services/my-app/clusters/[CLUSTER]/[ENV]" \
+		--kustomize-build-values "CLUSTER=alpha,beta;ENV=stg,prod" \
 		--policies-path test/local/policies \
 		--templates-path test/local/templates \
-		--output-dir test/output \
+		--output-dir test/local/output \
 		--enable-export-report true \
 		--enable-export-performance-report true \
 		--debug true;

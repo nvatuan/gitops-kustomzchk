@@ -1,4 +1,4 @@
-This is new test fixture for local testing for version after v0.5 inclusive, after introduction of DYNAMIC build path
+This is test fixture for local testing for version before v0.4 inclusive, before introduction of DYNAMIC build path
 
 ## Version
 
