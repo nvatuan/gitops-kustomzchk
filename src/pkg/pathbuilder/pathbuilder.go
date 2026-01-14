@@ -3,7 +3,6 @@ package pathbuilder
 import (
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -164,18 +163,15 @@ func (pb *PathBuilder) GenerateAllPaths() ([]PathCombination, error) {
 }
 
 // cartesianProduct generates all combinations of variable values
+// Variables are processed in the order they appear in the template
 func (pb *PathBuilder) cartesianProduct(varNames []string) []map[string]string {
 	if len(varNames) == 0 {
 		return []map[string]string{{}}
 	}
 
-	// Sort variable names for consistent ordering
-	sortedVars := make([]string, len(varNames))
-	copy(sortedVars, varNames)
-	sort.Strings(sortedVars)
-
+	// Use varNames as-is to preserve template order
 	var results []map[string]string
-	pb.generateCombinations(sortedVars, 0, make(map[string]string), &results)
+	pb.generateCombinations(varNames, 0, make(map[string]string), &results)
 	return results
 }
 
@@ -200,15 +196,11 @@ func (pb *PathBuilder) generateCombinations(varNames []string, index int, curren
 }
 
 // generateOverlayKey creates a key for reports based on variable values
-// Uses all variable values joined by "/"
+// Uses variable values in template order joined by "/"
 func (pb *PathBuilder) generateOverlayKey(varNames []string, values map[string]string) string {
-	// Sort for consistent ordering
-	sortedVars := make([]string, len(varNames))
-	copy(sortedVars, varNames)
-	sort.Strings(sortedVars)
-
+	// Use template order (varNames is already in template order)
 	var parts []string
-	for _, varName := range sortedVars {
+	for _, varName := range varNames {
 		if value, ok := values[varName]; ok {
 			parts = append(parts, value)
 		}

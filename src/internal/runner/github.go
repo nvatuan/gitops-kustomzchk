@@ -211,28 +211,28 @@ func (r *RunnerGitHub) Process() error {
 
 	// Determine paths for git checkout
 	var beforeCheckoutPath, afterCheckoutPath string
-	
+
 	if r.options.UseDynamicPaths() {
 		// For dynamic paths, extract the base path from the template
 		// e.g., "manifests-nested/services/[SERVICE]/clusters/[CLUSTER]/[ENV]"
 		//    -> checkout "manifests-nested" or "manifests-nested/services"
-		
+
 		// Find the first variable in the template
 		templatePath := r.options.KustomizeBuildPath
 		varIdx := strings.Index(templatePath, "[")
-		
+
 		if varIdx > 0 {
 			// Get path before first variable
 			basePath := templatePath[:varIdx]
 			// Remove trailing slash
 			basePath = strings.TrimSuffix(basePath, "/")
-			
+
 			// If there's a path separator, take everything up to the last one
 			// to get a meaningful directory to checkout
 			if lastSlash := strings.LastIndex(basePath, "/"); lastSlash > 0 {
 				basePath = basePath[:lastSlash]
 			}
-			
+
 			beforeCheckoutPath = basePath
 			afterCheckoutPath = basePath
 		} else {
@@ -245,7 +245,7 @@ func (r *RunnerGitHub) Process() error {
 				afterCheckoutPath = "."
 			}
 		}
-		
+
 		logger.WithFields(map[string]interface{}{
 			"templatePath":       templatePath,
 			"beforeCheckoutPath": beforeCheckoutPath,
