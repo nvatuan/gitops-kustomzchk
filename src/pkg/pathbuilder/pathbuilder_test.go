@@ -14,12 +14,12 @@ func TestParseTemplate(t *testing.T) {
 	}{
 		{
 			name:     "single variable",
-			template: "/path/$SERVICE/env",
+			template: "/path/[SERVICE]/env",
 			want:     []string{"SERVICE"},
 		},
 		{
 			name:     "multiple variables",
-			template: "/path/$SERVICE/clusters/$CLUSTER/$ENV",
+			template: "/path/[SERVICE]/clusters/[CLUSTER]/[ENV]",
 			want:     []string{"SERVICE", "CLUSTER", "ENV"},
 		},
 		{
@@ -29,12 +29,12 @@ func TestParseTemplate(t *testing.T) {
 		},
 		{
 			name:     "duplicate variables",
-			template: "/path/$SERVICE/$SERVICE",
+			template: "/path/[SERVICE]/[SERVICE]",
 			want:     []string{"SERVICE"},
 		},
 		{
 			name:     "variable with underscores",
-			template: "/path/$MY_SERVICE/env",
+			template: "/path/[MY_SERVICE]/env",
 			want:     []string{"MY_SERVICE"},
 		},
 	}
@@ -133,7 +133,7 @@ func TestPathBuilder_Validate(t *testing.T) {
 		{
 			name: "valid - all vars have values",
 			pb: &PathBuilder{
-				Template: "/path/$SERVICE/$ENV",
+				Template: "/path/[SERVICE]/[ENV]",
 				Variables: map[string][]string{
 					"SERVICE": {"my-app"},
 					"ENV":     {"stg", "prod"},
@@ -144,7 +144,7 @@ func TestPathBuilder_Validate(t *testing.T) {
 		{
 			name: "missing variable value",
 			pb: &PathBuilder{
-				Template: "/path/$SERVICE/$ENV",
+				Template: "/path/[SERVICE]/[ENV]",
 				Variables: map[string][]string{
 					"SERVICE": {"my-app"},
 				},
@@ -170,7 +170,7 @@ func TestPathBuilder_Validate(t *testing.T) {
 		{
 			name: "empty values array",
 			pb: &PathBuilder{
-				Template: "/path/$SERVICE",
+				Template: "/path/[SERVICE]",
 				Variables: map[string][]string{
 					"SERVICE": {},
 				},
@@ -200,7 +200,7 @@ func TestPathBuilder_InterpolatePath(t *testing.T) {
 		{
 			name: "single variable",
 			pb: &PathBuilder{
-				Template: "/path/$SERVICE/env",
+				Template: "/path/[SERVICE]/env",
 			},
 			values:  map[string]string{"SERVICE": "my-app"},
 			want:    "/path/my-app/env",
@@ -209,7 +209,7 @@ func TestPathBuilder_InterpolatePath(t *testing.T) {
 		{
 			name: "multiple variables",
 			pb: &PathBuilder{
-				Template: "/path/$SERVICE/clusters/$CLUSTER/$ENV",
+				Template: "/path/[SERVICE]/clusters/[CLUSTER]/[ENV]",
 			},
 			values: map[string]string{
 				"SERVICE": "my-app",
@@ -222,7 +222,7 @@ func TestPathBuilder_InterpolatePath(t *testing.T) {
 		{
 			name: "unresolved variable",
 			pb: &PathBuilder{
-				Template: "/path/$SERVICE/$ENV",
+				Template: "/path/[SERVICE]/[ENV]",
 			},
 			values:  map[string]string{"SERVICE": "my-app"},
 			wantErr: true,
@@ -253,7 +253,7 @@ func TestPathBuilder_GenerateAllPaths(t *testing.T) {
 		{
 			name: "single variable single value",
 			pb: &PathBuilder{
-				Template: "/path/$SERVICE/env",
+				Template: "/path/[SERVICE]/env",
 				Variables: map[string][]string{
 					"SERVICE": {"my-app"},
 				},
@@ -270,7 +270,7 @@ func TestPathBuilder_GenerateAllPaths(t *testing.T) {
 		{
 			name: "single variable multiple values",
 			pb: &PathBuilder{
-				Template: "/path/$ENV",
+				Template: "/path/[ENV]",
 				Variables: map[string][]string{
 					"ENV": {"stg", "prod"},
 				},
@@ -292,7 +292,7 @@ func TestPathBuilder_GenerateAllPaths(t *testing.T) {
 		{
 			name: "multiple variables - cartesian product",
 			pb: &PathBuilder{
-				Template: "/path/$CLUSTER/$ENV",
+				Template: "/path/[CLUSTER]/[ENV]",
 				Variables: map[string][]string{
 					"CLUSTER": {"alpha", "beta"},
 					"ENV":     {"stg", "prod"},
@@ -367,13 +367,13 @@ func TestNewPathBuilder(t *testing.T) {
 	}{
 		{
 			name:      "valid inputs",
-			template:  "/path/$SERVICE/$ENV",
+			template:  "/path/[SERVICE]/[ENV]",
 			valuesStr: "SERVICE=my-app;ENV=stg,prod",
 			wantErr:   false,
 		},
 		{
 			name:      "invalid values string",
-			template:  "/path/$SERVICE",
+			template:  "/path/[SERVICE]",
 			valuesStr: "INVALID",
 			wantErr:   true,
 		},
@@ -395,7 +395,7 @@ func TestNewPathBuilder(t *testing.T) {
 
 func TestPathBuilder_GetRelativePaths(t *testing.T) {
 	pb := &PathBuilder{
-		Template: "/services/$SERVICE/clusters/$CLUSTER/$ENV",
+		Template: "/services/[SERVICE]/clusters/[CLUSTER]/[ENV]",
 		Variables: map[string][]string{
 			"SERVICE": {"my-app"},
 			"CLUSTER": {"alpha"},

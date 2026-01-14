@@ -42,7 +42,7 @@ It builds kustomize manifests, diffs them, evaluates OPA policies, and posts det
 
 	// === New dynamic path flags (v0.5+) - RECOMMENDED ===
 	cmd.Flags().StringVar(&opts.KustomizeBuildPath, "kustomize-build-path", "",
-		"Path template with $VARIABLES (e.g., 'services/$SERVICE/clusters/$CLUSTER/$ENV')")
+		"Path template with [VARIABLES] (e.g., 'services/[SERVICE]/clusters/[CLUSTER]/[ENV]')")
 	cmd.Flags().StringVar(&opts.KustomizeBuildValues, "kustomize-build-values", "",
 		"Variable values: 'KEY=v1,v2;KEY2=v3' (e.g., 'SERVICE=my-app;CLUSTER=alpha;ENV=stg,prod')")
 
@@ -83,9 +83,9 @@ It builds kustomize manifests, diffs them, evaluates OPA policies, and posts det
 
 	// Local mode flags (v0.5+ dynamic paths with separate before/after)
 	cmd.Flags().StringVar(&opts.LcBeforeKustomizeBuildPath, "lc-before-kustomize-build-path", "",
-		"Before path template with $VARIABLES [local mode] (e.g., '/path/before/$SERVICE/$ENV')")
+		"Before path template with [VARIABLES] [local mode] (e.g., '/path/before/[SERVICE]/[ENV]')")
 	cmd.Flags().StringVar(&opts.LcAfterKustomizeBuildPath, "lc-after-kustomize-build-path", "",
-		"After path template with $VARIABLES [local mode] (e.g., '/path/after/$SERVICE/$ENV')")
+		"After path template with [VARIABLES] [local mode] (e.g., '/path/after/[SERVICE]/[ENV]')")
 
 	// NOTE: No required flags - validation done in validateOptions()
 	// This allows either legacy (--service + --environments) OR new (--kustomize-build-path + --kustomize-build-values)

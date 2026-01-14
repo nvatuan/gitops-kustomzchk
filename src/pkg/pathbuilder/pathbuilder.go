@@ -20,8 +20,9 @@ type PathCombination struct {
 	OverlayKey string            // Key for reports (e.g., "alpha/stg")
 }
 
-// variablePattern matches $VARIABLE_NAME patterns (alphanumeric and underscores)
-var variablePattern = regexp.MustCompile(`\$([A-Za-z_][A-Za-z0-9_]*)`)
+// variablePattern matches [VARIABLE_NAME] patterns (alphanumeric and underscores)
+// Using brackets instead of $ to avoid bash variable expansion issues
+var variablePattern = regexp.MustCompile(`\[([A-Za-z_][A-Za-z0-9_]*)\]`)
 
 // NewPathBuilder creates a new PathBuilder from template and values strings
 func NewPathBuilder(template, valuesStr string) (*PathBuilder, error) {
@@ -112,7 +113,7 @@ func (pb *PathBuilder) Validate() error {
 func (pb *PathBuilder) InterpolatePath(values map[string]string) (string, error) {
 	result := pb.Template
 	for varName, value := range values {
-		result = strings.ReplaceAll(result, "$"+varName, value)
+		result = strings.ReplaceAll(result, "["+varName+"]", value)
 	}
 
 	// Check if any unresolved variables remain

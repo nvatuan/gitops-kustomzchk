@@ -28,13 +28,13 @@ make build > /dev/null 2>&1
 
 # Run the binary with new local dynamic path flags (separate before/after)
 echo "🚀 Running gitops-kustomzchk with local dynamic paths..."
-echo "   Before: $SCRIPT_DIR/before/services/my-app/clusters/\$CLUSTER/\$ENV"
-echo "   After:  $SCRIPT_DIR/after/services/my-app/clusters/\$CLUSTER/\$ENV"
+echo "   Before: $SCRIPT_DIR/before/services/my-app/clusters/[CLUSTER]/[ENV]"
+echo "   After:  $SCRIPT_DIR/after/services/my-app/clusters/[CLUSTER]/[ENV]"
 echo "   Values: CLUSTER=alpha,beta;ENV=stg,prod"
 
 "$BIN_PATH" --run-mode local \
-    --lc-before-kustomize-build-path "$SCRIPT_DIR/before/services/my-app/clusters/\$CLUSTER/\$ENV" \
-    --lc-after-kustomize-build-path "$SCRIPT_DIR/after/services/my-app/clusters/\$CLUSTER/\$ENV" \
+    --lc-before-kustomize-build-path "$SCRIPT_DIR/before/services/my-app/clusters/[CLUSTER]/[ENV]" \
+    --lc-after-kustomize-build-path "$SCRIPT_DIR/after/services/my-app/clusters/[CLUSTER]/[ENV]" \
     --kustomize-build-values "CLUSTER=alpha,beta;ENV=stg,prod" \
     --policies-path "$SCRIPT_DIR/policies" \
     --templates-path "$SCRIPT_DIR/templates" \
