@@ -75,11 +75,17 @@ It builds kustomize manifests, diffs them, evaluates OPA policies, and posts det
 	cmd.Flags().StringVar((*string)(&opts.GitCheckoutStrategy), "git-checkout-strategy", "sparse",
 		"Git checkout strategy: 'sparse' (scope to manifests path, faster) or 'shallow' (all files, depth 1) [github mode]")
 
-	// Local mode flags
+	// Local mode flags (legacy)
 	cmd.Flags().StringVar(&opts.LcBeforeManifestsPath, "lc-before-manifests-path", "",
-		"Path to before/base services directory [local mode]")
+		"Path to before/base services directory [local mode, legacy]")
 	cmd.Flags().StringVar(&opts.LcAfterManifestsPath, "lc-after-manifests-path", "",
-		"Path to after/head services directory [local mode]")
+		"Path to after/head services directory [local mode, legacy]")
+
+	// Local mode flags (v0.5+ dynamic paths with separate before/after)
+	cmd.Flags().StringVar(&opts.LcBeforeKustomizeBuildPath, "lc-before-kustomize-build-path", "",
+		"Before path template with $VARIABLES [local mode] (e.g., '/path/before/$SERVICE/$ENV')")
+	cmd.Flags().StringVar(&opts.LcAfterKustomizeBuildPath, "lc-after-kustomize-build-path", "",
+		"After path template with $VARIABLES [local mode] (e.g., '/path/after/$SERVICE/$ENV')")
 
 	// NOTE: No required flags - validation done in validateOptions()
 	// This allows either legacy (--service + --environments) OR new (--kustomize-build-path + --kustomize-build-values)

@@ -26,16 +26,16 @@ echo "🔨 Building binary..."
 cd "$PROJECT_ROOT"
 make build > /dev/null 2>&1
 
-# Run the binary with new dynamic path flags
-echo "🚀 Running gitops-kustomzchk with dynamic paths..."
-echo "   Template: services/\$SERVICE/clusters/\$CLUSTER/\$ENV"
-echo "   Values: SERVICE=my-app;CLUSTER=alpha,beta;ENV=stg,prod"
+# Run the binary with new local dynamic path flags (separate before/after)
+echo "🚀 Running gitops-kustomzchk with local dynamic paths..."
+echo "   Before: $SCRIPT_DIR/before/services/my-app/clusters/\$CLUSTER/\$ENV"
+echo "   After:  $SCRIPT_DIR/after/services/my-app/clusters/\$CLUSTER/\$ENV"
+echo "   Values: CLUSTER=alpha,beta;ENV=stg,prod"
 
 "$BIN_PATH" --run-mode local \
-    --kustomize-build-path "services/my-app/clusters/\$CLUSTER/\$ENV" \
+    --lc-before-kustomize-build-path "$SCRIPT_DIR/before/services/my-app/clusters/\$CLUSTER/\$ENV" \
+    --lc-after-kustomize-build-path "$SCRIPT_DIR/after/services/my-app/clusters/\$CLUSTER/\$ENV" \
     --kustomize-build-values "CLUSTER=alpha,beta;ENV=stg,prod" \
-    --lc-before-manifests-path "$SCRIPT_DIR/before" \
-    --lc-after-manifests-path "$SCRIPT_DIR/after" \
     --policies-path "$SCRIPT_DIR/policies" \
     --templates-path "$SCRIPT_DIR/templates" \
     --output-dir "$OUTPUT_DIR" \
@@ -86,11 +86,11 @@ if [ -f "$OUTPUT_DIR/report.json" ]; then
         done
         
         # Verify dynamic path metadata is present
-        BUILD_PATH=$(jq -r '.kustomizeBuildPath' "$OUTPUT_DIR/report.json" 2>/dev/null || echo "")
-        if [ -n "$BUILD_PATH" ] && [ "$BUILD_PATH" != "null" ]; then
-            echo -e "${GREEN}✅ kustomizeBuildPath present: $BUILD_PATH${NC}"
+        BUILD_VALUES=$(jq -r '.kustomizeBuildValues' "$OUTPUT_DIR/report.json" 2>/dev/null || echo "")
+        if [ -n "$BUILD_VALUES" ] && [ "$BUILD_VALUES" != "null" ]; then
+            echo -e "${GREEN}✅ kustomizeBuildValues present: $BUILD_VALUES${NC}"
         else
-            echo -e "${RED}❌ kustomizeBuildPath missing${NC}"
+            echo -e "${RED}❌ kustomizeBuildValues missing${NC}"
             FAILED=1
         fi
     else
