@@ -4,13 +4,28 @@ import "time"
 
 // ReportData represents the complete report data structure
 type ReportData struct {
-	Service      string    `json:"service"`
-	Timestamp    time.Time `json:"timestamp"`
-	BaseCommit   string    `json:"baseCommit"`
-	HeadCommit   string    `json:"headCommit"`
-	Environments []string  `json:"environments"`
+	// Service is kept for backward compatibility (legacy mode)
+	// For dynamic mode, this may be empty or contain the SERVICE variable value
+	Service string `json:"service,omitempty"`
 
-	// Manifest changes per environment
+	Timestamp  time.Time `json:"timestamp"`
+	BaseCommit string    `json:"baseCommit"`
+	HeadCommit string    `json:"headCommit"`
+
+	// Environments is kept for backward compatibility (legacy mode)
+	// Contains environment names like ["stg", "prod"]
+	Environments []string `json:"environments,omitempty"`
+
+	// OverlayKeys contains the overlay keys for all builds (both legacy and dynamic mode)
+	// For legacy mode: same as Environments
+	// For dynamic mode: combined variable values like ["alpha/stg", "alpha/prod"]
+	OverlayKeys []string `json:"overlayKeys,omitempty"`
+
+	// KustomizeBuildPath and KustomizeBuildValues store the build configuration (dynamic mode only)
+	KustomizeBuildPath   string `json:"kustomizeBuildPath,omitempty"`
+	KustomizeBuildValues string `json:"kustomizeBuildValues,omitempty"`
+
+	// Manifest changes per overlay key (or environment in legacy mode)
 	ManifestChanges map[string]EnvironmentDiff `json:"manifestChanges"`
 
 	// Policy evaluation results

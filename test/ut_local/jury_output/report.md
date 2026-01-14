@@ -2,7 +2,7 @@
 
 | Timestamp | Base | Head | Environments |
 -|-|-|-
-2025-11-20 03:38:14 UTC | base | head | `stg`, `prod`
+2026-01-14 17:58:11 UTC | base | head | `stg`, `prod`
 
 ## 📊 Manifest Changes
 
@@ -14,8 +14,8 @@
 
 
 ```diff
---- before	2025-11-20 03:38:13
-+++ after	2025-11-20 03:38:13
+--- before	2026-01-14 17:58:10
++++ after	2026-01-14 17:58:10
 @@ -48,7 +48,7 @@
            value: production
          - name: LOG_LEVEL
@@ -100,8 +100,8 @@
 
 
 ```diff
---- before	2025-11-20 03:38:13
-+++ after	2025-11-20 03:38:13
+--- before	2026-01-14 17:58:10
++++ after	2026-01-14 17:58:10
 @@ -4,6 +4,7 @@
    labels:
      app: my-app
@@ -214,11 +214,11 @@
 
 | Policy Name | Level | stg | prod | [Override Command](https://example.com/docs/high-availability) |
 |-------------|-------|-----|------|------------------|
-| Service Persistent Volume Forbidden | 🚫 | ✅ PASS | ✅ PASS | Not allowed |
 | Service Taggings | 🚫 | ✅ PASS | ❌ FAIL | `/sp-override-taggings` |
+| Service Persistent Volume Forbidden | 🚫 | ✅ PASS | ✅ PASS | Not allowed |
 | [Service High Availability](https://example.com/docs/high-availability) | ⚠️ | ❌ FAIL | ❌ FAIL | `/sp-override-ha` |
-| Service Pod Minimum Replicas Required | 💡 | ✅ PASS | ❌ FAIL | `/sp-override-pod-min-replicas` |
 | Service No CPU Limit | 💡 | ❌ FAIL | ✅ PASS | `/sp-override-no-cpu-limit` |
+| Service Pod Minimum Replicas Required | 💡 | ✅ PASS | ❌ FAIL | `/sp-override-pod-min-replicas` |
 
 
 </details>
