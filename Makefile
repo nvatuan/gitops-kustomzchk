@@ -107,14 +107,13 @@ run-github: build
 	# fi
 
 	${BIN_DIR}/${BINARY_NAME} --run-mode github \
-		--environments stg,prod \
-		--service app-bootstrap-touya \
-		--gh-repo moneyforward/tmp-clone_k8s-service-manifests \
-		--gh-pr-number 1 \
+		--kustomize-build-path "manifests-nested/services/[SERVICE]/clusters/[CLUSTER]/[ENV]" \
+		--kustomize-build-values "SERVICE=my-app;CLUSTER=blue,green;ENV=stg,prod" \
+		--gh-repo nvatuan/my-ideal-gitops-policy-ci-flow/ \
+		--gh-pr-number 14 \
 		--enable-export-report true \
 		--enable-export-performance-report true \
 		--output-dir test/output \
-		--manifests-path services \
 		--templates-path test/local/templates \
 		--policies-path test/local/policies \
 		--debug true;
