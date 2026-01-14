@@ -1,0 +1,189 @@
+{
+    "service": "my-app",
+    "timestamp": "2026-01-14T17:49:24.387009+09:00",
+    "baseCommit": "base",
+    "headCommit": "head",
+    "environments": [
+        "stg",
+        "prod"
+    ],
+    "overlayKeys": [
+        "stg",
+        "prod"
+    ],
+    "manifestChanges": {
+        "prod": {
+            "lineCount": 36,
+            "addedLineCount": 32,
+            "deletedLineCount": 4,
+            "contentGHFilePath": null,
+            "contentType": "text",
+            "content": "--- before\t2026-01-14 17:49:24\n+++ after\t2026-01-14 17:49:24\n@@ -48,7 +48,7 @@\n           value: production\n         - name: LOG_LEVEL\n           value: info\n-        image: nginx:1.21\n+        image: nginx:latest\n         livenessProbe:\n           failureThreshold: 3\n           httpGet:\n@@ -70,12 +70,45 @@\n           timeoutSeconds: 3\n         resources:\n           limits:\n-            cpu: 1000m\n             memory: 512Mi\n           requests:\n             cpu: 500m\n             memory: 256Mi\n ---\n+apiVersion: batch/v1\n+kind: CronJob\n+metadata:\n+  labels:\n+    environment: prod\n+  name: prod-hello-world-cronjob\n+  namespace: my-app-prod\n+spec:\n+  failedJobsHistoryLimit: 1\n+  jobTemplate:\n+    metadata:\n+      labels:\n+        environment: prod\n+    spec:\n+      backoffLimit: 0\n+      template:\n+        metadata:\n+          labels:\n+            environment: prod\n+        spec:\n+          containers:\n+          - command:\n+            - /bin/sh\n+            - -c\n+            - |\n+              echo \"hello world\"\n+              sleep 1800  # 30 minutes = 1800 seconds\n+              echo \"shutting down\"\n+            image: busybox:1.35\n+            name: hello-world\n+          restartPolicy: Never\n+  schedule: 0 */12 * * *\n+  successfulJobsHistoryLimit: 3\n+---\n apiVersion: autoscaling/v2\n kind: HorizontalPodAutoscaler\n metadata:\n@@ -194,7 +227,7 @@\n   namespace: my-app-prod\n spec:\n   rules:\n-  - host: my-app-prod.example.com\n+  - host: my-app.example.com\n     http:\n       paths:\n       - backend:\n@@ -206,5 +239,5 @@\n         pathType: Prefix\n   tls:\n   - hosts:\n-    - my-app-prod.example.com\n+    - my-app.example.com\n     secretName: my-app-prod-tls\n"
+        },
+        "stg": {
+            "lineCount": 16,
+            "addedLineCount": 12,
+            "deletedLineCount": 4,
+            "contentGHFilePath": null,
+            "contentType": "text",
+            "content": "--- before\t2026-01-14 17:49:24\n+++ after\t2026-01-14 17:49:24\n@@ -4,6 +4,7 @@\n   labels:\n     app: my-app\n     environment: stg\n+    github.com/nvatuan/domains: my-app\n     version: v1.0.0\n   name: stg-my-app-service\n   namespace: my-app-stg\n@@ -16,6 +17,7 @@\n   selector:\n     app: my-app\n     environment: stg\n+    github.com/nvatuan/domains: my-app\n     version: v1.0.0\n   type: ClusterIP\n ---\n@@ -25,6 +27,7 @@\n   labels:\n     app: my-app\n     environment: stg\n+    github.com/nvatuan/domains: my-app\n     version: v1.0.0\n   name: stg-my-app\n   namespace: my-app-stg\n@@ -34,12 +37,14 @@\n     matchLabels:\n       app: my-app\n       environment: stg\n+      github.com/nvatuan/domains: my-app\n       version: v1.0.0\n   template:\n     metadata:\n       labels:\n         app: my-app\n         environment: stg\n+        github.com/nvatuan/domains: my-app\n         version: v1.0.0\n     spec:\n       containers:\n@@ -47,7 +52,7 @@\n         - name: ENVIRONMENT\n           value: staging\n         - name: LOG_LEVEL\n-          value: debug\n+          value: warn\n         image: nginx:1.21\n         livenessProbe:\n           httpGet:\n@@ -66,8 +71,8 @@\n           periodSeconds: 5\n         resources:\n           limits:\n-            cpu: 500m\n-            memory: 256Mi\n+            cpu: 800m\n+            memory: 512Mi\n           requests:\n             cpu: 250m\n             memory: 128Mi\n@@ -78,6 +83,7 @@\n   labels:\n     app: my-app\n     environment: stg\n+    github.com/nvatuan/domains: my-app\n     version: v1.0.0\n   name: stg-my-app-hpa\n   namespace: my-app-stg\n@@ -125,6 +131,7 @@\n   labels:\n     app: my-app\n     environment: stg\n+    github.com/nvatuan/domains: my-app\n     version: v1.0.0\n   name: stg-my-app-keda\n   namespace: my-app-stg\n@@ -135,7 +142,7 @@\n     replicas: 1\n   idleReplicaCount: 0\n   maxReplicaCount: 8\n-  minReplicaCount: 1\n+  minReplicaCount: 4\n   pollingInterval: 15\n   scaleTargetRef:\n     name: my-app\n@@ -164,6 +171,7 @@\n   labels:\n     app: my-app\n     environment: stg\n+    github.com/nvatuan/domains: my-app\n     version: v1.0.0\n   name: stg-my-app-ingress\n   namespace: my-app-stg\n"
+        }
+    },
+    "policyEvaluation": {
+        "environmentSummary": {
+            "prod": {
+                "passingStatus": {
+                    "passBlockingCheck": false,
+                    "passWarningCheck": false,
+                    "passRecommendCheck": false
+                },
+                "policyCounts": {
+                    "totalCount": 5,
+                    "totalSuccess": 2,
+                    "totalFailed": 3,
+                    "totalOmitted": 0,
+                    "totalOmittedFailed": 0,
+                    "totalOmittedSuccess": 0,
+                    "blockingSuccessCount": 1,
+                    "blockingFailedCount": 1,
+                    "warningSuccessCount": 0,
+                    "warningFailedCount": 1,
+                    "recommendSuccessCount": 1,
+                    "recommendFailedCount": 1,
+                    "overriddenSuccessCount": 0,
+                    "overriddenFailedCount": 0,
+                    "notInEffectSuccessCount": 0,
+                    "notInEffectFailedCount": 0
+                }
+            },
+            "stg": {
+                "passingStatus": {
+                    "passBlockingCheck": true,
+                    "passWarningCheck": false,
+                    "passRecommendCheck": false
+                },
+                "policyCounts": {
+                    "totalCount": 5,
+                    "totalSuccess": 3,
+                    "totalFailed": 2,
+                    "totalOmitted": 0,
+                    "totalOmittedFailed": 0,
+                    "totalOmittedSuccess": 0,
+                    "blockingSuccessCount": 2,
+                    "blockingFailedCount": 0,
+                    "warningSuccessCount": 0,
+                    "warningFailedCount": 1,
+                    "recommendSuccessCount": 1,
+                    "recommendFailedCount": 1,
+                    "overriddenSuccessCount": 0,
+                    "overriddenFailedCount": 0,
+                    "notInEffectSuccessCount": 0,
+                    "notInEffectFailedCount": 0
+                }
+            }
+        },
+        "policyMatrix": {
+            "prod": {
+                "blockingPolicies": [
+                    {
+                        "policyId": "service-persistent-volume-forbidden",
+                        "policyName": "Service Persistent Volume Forbidden",
+                        "isPassing": true,
+                        "failMessages": []
+                    },
+                    {
+                        "policyId": "service-taggings",
+                        "policyName": "Service Taggings",
+                        "overrideCommand": "/sp-override-taggings",
+                        "isPassing": false,
+                        "failMessages": [
+                            "CronJob prod-hello-world-cronjob does not have the required label 'github.com/nvatuan/domains'",
+                            "Deployment prod-my-app does not have the required label 'github.com/nvatuan/domains'"
+                        ]
+                    }
+                ],
+                "warningPolicies": [
+                    {
+                        "policyId": "service-high-availability",
+                        "policyName": "Service High Availability",
+                        "externalLink": "https://example.com/docs/high-availability",
+                        "overrideCommand": "/sp-override-ha",
+                        "isPassing": false,
+                        "failMessages": [
+                            "Deployment 'prod-my-app' must have PodAntiAffinity or PodTopologySpread for high availability"
+                        ]
+                    }
+                ],
+                "recommendPolicies": [
+                    {
+                        "policyId": "service-pod-minimum-replicas-required",
+                        "policyName": "Service Pod Minimum Replicas Required",
+                        "overrideCommand": "/sp-override-pod-min-replicas",
+                        "isPassing": false,
+                        "failMessages": [
+                            "Resource prod-hello-world-cronjob in namespace my-app-prod has no singleton annotation. Add annotation: service-platform.moneyforward.com/singleton-resource: \"true\""
+                        ]
+                    },
+                    {
+                        "policyId": "service-no-cpu-limit",
+                        "policyName": "Service No CPU Limit",
+                        "overrideCommand": "/sp-override-no-cpu-limit",
+                        "isPassing": true,
+                        "failMessages": []
+                    }
+                ],
+                "overriddenPolicies": [],
+                "notInEffectPolicies": []
+            },
+            "stg": {
+                "blockingPolicies": [
+                    {
+                        "policyId": "service-persistent-volume-forbidden",
+                        "policyName": "Service Persistent Volume Forbidden",
+                        "isPassing": true,
+                        "failMessages": []
+                    },
+                    {
+                        "policyId": "service-taggings",
+                        "policyName": "Service Taggings",
+                        "overrideCommand": "/sp-override-taggings",
+                        "isPassing": true,
+                        "failMessages": []
+                    }
+                ],
+                "warningPolicies": [
+                    {
+                        "policyId": "service-high-availability",
+                        "policyName": "Service High Availability",
+                        "externalLink": "https://example.com/docs/high-availability",
+                        "overrideCommand": "/sp-override-ha",
+                        "isPassing": false,
+                        "failMessages": [
+                            "Deployment 'stg-my-app' must have PodAntiAffinity or PodTopologySpread for high availability"
+                        ]
+                    }
+                ],
+                "recommendPolicies": [
+                    {
+                        "policyId": "service-no-cpu-limit",
+                        "policyName": "Service No CPU Limit",
+                        "overrideCommand": "/sp-override-no-cpu-limit",
+                        "isPassing": false,
+                        "failMessages": [
+                            "Deployment 'stg-my-app' container 'my-app' should not have a cpu limit, found: 800m"
+                        ]
+                    },
+                    {
+                        "policyId": "service-pod-minimum-replicas-required",
+                        "policyName": "Service Pod Minimum Replicas Required",
+                        "overrideCommand": "/sp-override-pod-min-replicas",
+                        "isPassing": true,
+                        "failMessages": []
+                    }
+                ],
+                "overriddenPolicies": [],
+                "notInEffectPolicies": []
+            }
+        }
+    }
+}
