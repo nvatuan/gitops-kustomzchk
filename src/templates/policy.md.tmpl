@@ -1,28 +1,88 @@
 ## 🛡️ Policy Evaluation
 
-| **Environments** | **Success** | **Omitted** | **Failed** | **F(Blocking)** | **F(Warning)** | **F(Recommend)** |
-|--------------|---------|---------|--------|---------|---------|---------|
-{{range $env, $sum := .PolicyEvaluation.EnvironmentSummary}}| `{{ $env }}` | `{{ $sum.PolicyCounts.TotalSuccess }}`✅ | `{{ $sum.PolicyCounts.TotalOmitted }}`⏭️ | `{{ $sum.PolicyCounts.TotalFailed }}`❌ | `{{ $sum.PolicyCounts.BlockingFailedCount }}`🚫 | `{{ $sum.PolicyCounts.WarningFailedCount }}`⚠️ | `{{ $sum.PolicyCounts.RecommendFailedCount }}`💡 |
+| **Environments** | **Success** | **Omitted** | **Failed** | **Errored** | **F(Blocking)** | **F(Warning)** | **F(Recommend)** |
+|--------------|---------|---------|--------|---------|---------|---------|---------|
+{{range $env, $sum := .PolicyEvaluation.EnvironmentSummary}}| `{{ $env }}` | `{{ $sum.PolicyCounts.TotalSuccess }}`✅ | `{{ $sum.PolicyCounts.TotalOmitted }}`⏭️ | `{{ $sum.PolicyCounts.TotalFailed }}`❌ | `{{ $sum.PolicyCounts.TotalErrored }}`🔥 | `{{ $sum.PolicyCounts.BlockingFailedCount }}`🚫 | `{{ $sum.PolicyCounts.WarningFailedCount }}`⚠️ | `{{ $sum.PolicyCounts.RecommendFailedCount }}`💡 |
 {{ end }}
 
 <details> <summary> Policy Evaluation Matrix: </summary>
 
 | Policy Name | Level | stg | prod |
 |-------------|-------|-----|------|
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.BlockingPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | 🚫 | {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.BlockingPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if $prodPolicy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}{{end}}{{end}} |
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.BlockingPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | 🚫 | {{if eq $policy.EvaluationStatus "pass"}}✅ PASS{{else if eq $policy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.BlockingPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if eq $prodPolicy.EvaluationStatus "pass"}}✅ PASS{{else if eq $prodPolicy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}}{{end}}{{end}} |
 {{end -}}
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.WarningPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | ⚠️ | {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.WarningPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if $prodPolicy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}{{end}}{{end}} |
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.WarningPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | ⚠️ | {{if eq $policy.EvaluationStatus "pass"}}✅ PASS{{else if eq $policy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.WarningPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if eq $prodPolicy.EvaluationStatus "pass"}}✅ PASS{{else if eq $prodPolicy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}}{{end}}{{end}} |
 {{end -}}
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.RecommendPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | 💡 | {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.RecommendPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if $prodPolicy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}{{end}}{{end}} |
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.RecommendPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | 💡 | {{if eq $policy.EvaluationStatus "pass"}}✅ PASS{{else if eq $policy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.RecommendPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if eq $prodPolicy.EvaluationStatus "pass"}}✅ PASS{{else if eq $prodPolicy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}}{{end}}{{end}} |
 {{end -}}
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.OverriddenPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | ⏭️ | {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.OverriddenPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if $prodPolicy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}{{end}}{{end}} |
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.OverriddenPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | ⏭️ | {{if eq $policy.EvaluationStatus "pass"}}✅ PASS{{else if eq $policy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.OverriddenPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if eq $prodPolicy.EvaluationStatus "pass"}}✅ PASS{{else if eq $prodPolicy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}}{{end}}{{end}} |
 {{end -}}
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.NotInEffectPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | ⏭️ | {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.NotInEffectPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if $prodPolicy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}{{end}}{{end}} |
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.NotInEffectPolicies}}| {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}} | ⏭️ | {{if eq $policy.EvaluationStatus "pass"}}✅ PASS{{else if eq $policy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}} | {{range $prodPolicy := $.PolicyEvaluation.PolicyMatrix.prod.NotInEffectPolicies}}{{if eq $prodPolicy.PolicyId $policy.PolicyId}}{{if eq $prodPolicy.EvaluationStatus "pass"}}✅ PASS{{else if eq $prodPolicy.EvaluationStatus "fail"}}❌ FAIL{{else}}🔥 ERROR{{end}}{{end}}{{end}} |
 {{end}}
 
 </details>
 
 <details> <summary> Failing Policies Details: </summary>
+
+{{- if or (gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.TotalErrored 0) (gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.TotalErrored 0) }}
+
+### 🔥 ERRORED Policies (Evaluation Failure)
+
+##### [`stg`] environment 
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.BlockingErroredCount 0 }}
+**🚫 BLOCKING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.BlockingPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.WarningErroredCount 0 }}
+**⚠️ WARNING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.WarningPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.RecommendErroredCount 0 }}
+**💡 RECOMMEND:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.RecommendPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if and (eq .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.BlockingErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.WarningErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.RecommendErroredCount 0) }}
+* None! 🙌
+{{- end}}
+
+##### [`prod`] environment 
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.BlockingErroredCount 0 }}
+**🚫 BLOCKING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.BlockingPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.WarningErroredCount 0 }}
+**⚠️ WARNING:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.WarningPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.RecommendErroredCount 0 }}
+**💡 RECOMMEND:**
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.RecommendPolicies}}{{if eq $policy.EvaluationStatus "error"}}
+* Policy `{{$policy.PolicyName}}` errored: {{$policy.ErrorMessage}}
+{{end}}{{end}}
+{{end}}
+
+{{- if and (eq .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.BlockingErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.WarningErroredCount 0) (eq .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.RecommendErroredCount 0) }}
+* None! 🙌
+{{- end}}
+
+{{end}}
 
 #### 🚫 BLOCKING Policies |{{range $env, $sum := .PolicyEvaluation.EnvironmentSummary}} `{{$env}}`: `{{$sum.PolicyCounts.BlockingFailedCount}}`❌ |{{end}}
 
@@ -30,7 +90,7 @@
 
 {{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.BlockingFailedCount 0 }}
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.BlockingPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.BlockingPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
@@ -43,7 +103,7 @@
 {{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.BlockingFailedCount 0 }}
 ##### [`prod`] environment 
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.BlockingPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.BlockingPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
@@ -57,7 +117,7 @@
 {{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.WarningFailedCount 0 }}
 ##### [`stg`] environment 
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.WarningPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.WarningPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
@@ -69,7 +129,7 @@
 {{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.WarningFailedCount 0 }}
 ##### [`prod`] environment 
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.WarningPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.WarningPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
@@ -83,7 +143,7 @@
 {{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.RecommendFailedCount 0 }}
 ##### [`stg`] environment 
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.RecommendPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.RecommendPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
@@ -96,7 +156,7 @@
 
 {{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.RecommendFailedCount 0 }}
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.RecommendPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.RecommendPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
@@ -111,13 +171,13 @@
 
 {{- if gt .PolicyEvaluation.EnvironmentSummary.stg.PolicyCounts.TotalOmittedFailed 0 }}
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.OverriddenPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.OverriddenPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
 {{end}}{{end}}
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.NotInEffectPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.stg.NotInEffectPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
@@ -131,13 +191,13 @@
 
 {{- if gt .PolicyEvaluation.EnvironmentSummary.prod.PolicyCounts.TotalOmittedFailed 0 }}
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.OverriddenPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.OverriddenPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
 {{end}}{{end}}
 
-{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.NotInEffectPolicies}}{{if not $policy.IsPassing}}
+{{range $policy := .PolicyEvaluation.PolicyMatrix.prod.NotInEffectPolicies}}{{if eq $policy.EvaluationStatus "fail"}}
 * Policy `{{$policy.PolicyName}}` failed with the following messages:
 {{range $msg := $policy.FailMessages}}  * {{$msg}}
 {{end}}
