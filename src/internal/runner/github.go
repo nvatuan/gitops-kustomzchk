@@ -213,23 +213,41 @@ func (r *RunnerGitHub) Process() error {
 	var beforeCheckoutPath, afterCheckoutPath string
 	
 	if r.options.UseDynamicPaths() {
-		// For dynamic paths, we need to determine the sparse checkout path
-		// based on the path template structure
+		// For dynamic paths, extract the base path from the template
+		// e.g., "manifests-nested/services/[SERVICE]/clusters/[CLUSTER]/[ENV]"
+		//    -> checkout "manifests-nested" or "manifests-nested/services"
 		
-		// For now, if using dynamic paths, we'll use shallow checkout strategy
-		// or checkout the entire manifests-path if specified
-		// TODO: Implement smart sparse checkout based on path template analysis
+		// Find the first variable in the template
+		templatePath := r.options.KustomizeBuildPath
+		varIdx := strings.Index(templatePath, "[")
 		
-		if r.options.ManifestsPath != "" {
-			beforeCheckoutPath = r.options.ManifestsPath
-			afterCheckoutPath = r.options.ManifestsPath
+		if varIdx > 0 {
+			// Get path before first variable
+			basePath := templatePath[:varIdx]
+			// Remove trailing slash
+			basePath = strings.TrimSuffix(basePath, "/")
+			
+			// If there's a path separator, take everything up to the last one
+			// to get a meaningful directory to checkout
+			if lastSlash := strings.LastIndex(basePath, "/"); lastSlash > 0 {
+				basePath = basePath[:lastSlash]
+			}
+			
+			beforeCheckoutPath = basePath
+			afterCheckoutPath = basePath
 		} else {
-			// If no manifests path specified, checkout root
-			// This will be slower but ensures we have all paths
-			beforeCheckoutPath = "."
-			afterCheckoutPath = "."
+			// No variables or variable at start - checkout from manifests-path or root
+			if r.options.ManifestsPath != "" {
+				beforeCheckoutPath = r.options.ManifestsPath
+				afterCheckoutPath = r.options.ManifestsPath
+			} else {
+				beforeCheckoutPath = "."
+				afterCheckoutPath = "."
+			}
 		}
+		
 		logger.WithFields(map[string]interface{}{
+			"templatePath":       templatePath,
 			"beforeCheckoutPath": beforeCheckoutPath,
 			"afterCheckoutPath":  afterCheckoutPath,
 			"strategy":           r.options.GitCheckoutStrategy,
@@ -273,7 +291,7 @@ func (r *RunnerGitHub) Process() error {
 
 	// Determine the base paths for building manifests
 	var beforePath, afterPath string
-	
+
 	if r.options.UseDynamicPaths() {
 		// For dynamic paths, the PathBuilder will handle the full path construction
 		// We just provide the checkout root
@@ -443,7 +461,7 @@ func (r *RunnerGitHub) buildReportData(
 		reportData.OverlayKeys = overlayKeys
 		reportData.KustomizeBuildPath = r.options.KustomizeBuildPath
 		reportData.KustomizeBuildValues = r.options.KustomizeBuildValues
-		
+
 		// Set Service to empty for dynamic mode (or extract from path if needed)
 		reportData.Service = ""
 		// Keep Environments for backward compat in templates, same as OverlayKeys
