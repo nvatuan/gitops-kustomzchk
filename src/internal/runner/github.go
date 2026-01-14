@@ -161,7 +161,12 @@ func (r *RunnerGitHub) DiffManifests(result *models.BuildManifestResult) (map[st
 			}).Info("Diff is too long, uploading as artifact")
 
 			// Create filename for this diff
-			filename := fmt.Sprintf("diff-pr%d-%s-%s.txt", r.options.GhPrNumber, env, r.options.Service)
+			// Use overlay key directly (which is env in this context)
+			serviceIdentifier := r.options.Service
+			if serviceIdentifier == "" {
+				serviceIdentifier = "dynamic"
+			}
+			filename := fmt.Sprintf("diff-pr%d-%s-%s.txt", r.options.GhPrNumber, env, serviceIdentifier)
 
 			// Save diff content to file
 			outputDir := r.Options.OutputDir
@@ -204,11 +209,46 @@ func (r *RunnerGitHub) Process() error {
 
 	logger.Info("Process: starting...")
 
+	// Determine paths for git checkout
+	var beforeCheckoutPath, afterCheckoutPath string
+	
+	if r.options.UseDynamicPaths() {
+		// For dynamic paths, we need to determine the sparse checkout path
+		// based on the path template structure
+		
+		// For now, if using dynamic paths, we'll use shallow checkout strategy
+		// or checkout the entire manifests-path if specified
+		// TODO: Implement smart sparse checkout based on path template analysis
+		
+		if r.options.ManifestsPath != "" {
+			beforeCheckoutPath = r.options.ManifestsPath
+			afterCheckoutPath = r.options.ManifestsPath
+		} else {
+			// If no manifests path specified, checkout root
+			// This will be slower but ensures we have all paths
+			beforeCheckoutPath = "."
+			afterCheckoutPath = "."
+		}
+		logger.WithFields(map[string]interface{}{
+			"beforeCheckoutPath": beforeCheckoutPath,
+			"afterCheckoutPath":  afterCheckoutPath,
+			"strategy":           r.options.GitCheckoutStrategy,
+		}).Debug("Using dynamic paths - checking out manifests")
+	} else {
+		// Legacy mode: use service-based path
+		beforeCheckoutPath = filepath.Join(r.options.ManifestsPath, r.options.Service)
+		afterCheckoutPath = filepath.Join(r.options.ManifestsPath, r.options.Service)
+		logger.WithFields(map[string]interface{}{
+			"service":            r.options.Service,
+			"beforeCheckoutPath": beforeCheckoutPath,
+			"afterCheckoutPath":  afterCheckoutPath,
+		}).Debug("Using legacy mode - checking out service manifests")
+	}
+
 	logger.WithField("repo", r.options.GhRepo).WithField("branch", r.prInfo.BaseRef).Debug("Process: Calling CheckoutAtPath for base commit")
 	_, checkoutBaseSpan := trace.StartSpan(ctx, "GitCheckout.Base")
-	beforePathToSparseCheckout := filepath.Join(r.options.ManifestsPath, r.options.Service)
 	checkedOutBeforePath, err := r.ghclient.CheckoutAtPath(
-		r.Context, r.options.GhRepo, r.prInfo.BaseRef, beforePathToSparseCheckout, string(r.options.GitCheckoutStrategy))
+		r.Context, r.options.GhRepo, r.prInfo.BaseRef, beforeCheckoutPath, string(r.options.GitCheckoutStrategy))
 	if err != nil {
 		checkoutBaseSpan.End()
 		return fmt.Errorf("failed to checkout base commit: %w", err)
@@ -217,14 +257,11 @@ func (r *RunnerGitHub) Process() error {
 	defer func() {
 		_ = os.RemoveAll(checkedOutBeforePath)
 	}()
-	beforePath := filepath.Join(checkedOutBeforePath, r.options.ManifestsPath, r.options.Service)
 
 	logger.WithField("repo", r.options.GhRepo).WithField("headRef", r.prInfo.HeadRef).Info("Checking out manifests")
 	_, checkoutHeadSpan := trace.StartSpan(ctx, "GitCheckout.Head")
-
-	afterPathToSparseCheckout := filepath.Join(r.options.ManifestsPath, r.options.Service)
 	checkedOutAfterPath, err := r.ghclient.CheckoutAtPath(
-		r.Context, r.options.GhRepo, r.prInfo.HeadRef, afterPathToSparseCheckout, string(r.options.GitCheckoutStrategy))
+		r.Context, r.options.GhRepo, r.prInfo.HeadRef, afterCheckoutPath, string(r.options.GitCheckoutStrategy))
 	if err != nil {
 		checkoutHeadSpan.End()
 		return fmt.Errorf("failed to checkout head commit: %w", err)
@@ -233,7 +270,29 @@ func (r *RunnerGitHub) Process() error {
 	defer func() {
 		_ = os.RemoveAll(checkedOutAfterPath)
 	}()
-	afterPath := filepath.Join(checkedOutAfterPath, r.options.ManifestsPath, r.options.Service)
+
+	// Determine the base paths for building manifests
+	var beforePath, afterPath string
+	
+	if r.options.UseDynamicPaths() {
+		// For dynamic paths, the PathBuilder will handle the full path construction
+		// We just provide the checkout root
+		beforePath = checkedOutBeforePath
+		afterPath = checkedOutAfterPath
+		logger.WithFields(map[string]interface{}{
+			"beforePath": beforePath,
+			"afterPath":  afterPath,
+		}).Debug("Using dynamic paths - PathBuilder will construct full paths")
+	} else {
+		// Legacy mode: append manifests-path and service to checkout root
+		beforePath = filepath.Join(checkedOutBeforePath, r.options.ManifestsPath, r.options.Service)
+		afterPath = filepath.Join(checkedOutAfterPath, r.options.ManifestsPath, r.options.Service)
+		logger.WithFields(map[string]interface{}{
+			"service":    r.options.Service,
+			"beforePath": beforePath,
+			"afterPath":  afterPath,
+		}).Debug("Using legacy mode - constructing service paths")
+	}
 
 	rs, err := r.BuildManifests(beforePath, afterPath)
 	if err != nil {
@@ -265,15 +324,7 @@ func (r *RunnerGitHub) Process() error {
 	evalSpan.End()
 	logger.WithField("results", policyEval).Debug("Evaluated Policies")
 
-	reportData := models.ReportData{
-		Service:          r.Options.Service,
-		Timestamp:        time.Now(),
-		BaseCommit:       r.prInfo.BaseSHA,
-		HeadCommit:       r.prInfo.HeadSHA,
-		Environments:     r.Options.Environments,
-		ManifestChanges:  diffs,
-		PolicyEvaluation: *policyEval,
-	}
+	reportData := r.buildReportData(rs, diffs, policyEval)
 
 	if err := r.Output(&reportData); err != nil {
 		return err
@@ -334,7 +385,13 @@ func (r *RunnerGitHub) outputGitHubComment(data *models.ReportData) error {
 	logger.WithField("renderedMarkdown", renderedMarkdown).Debug("Rendered markdown")
 
 	// Add the comment marker and replace the service token
-	commentSignature := strings.ReplaceAll(template.ToolCommentSignature, template.ToolCommentServiceToken, r.Options.Service)
+	// For dynamic paths, we'll use a generic signature or the first overlay key
+	serviceIdentifier := r.Options.Service
+	if serviceIdentifier == "" && r.options.UseDynamicPaths() {
+		// Use a generic identifier for dynamic paths
+		serviceIdentifier = "dynamic-paths"
+	}
+	commentSignature := strings.ReplaceAll(template.ToolCommentSignature, template.ToolCommentServiceToken, serviceIdentifier)
 	finalComment := commentSignature + "\n\n" + renderedMarkdown
 
 	// Check if there's an existing comment from this tool for this specific service
@@ -361,4 +418,42 @@ func (r *RunnerGitHub) outputGitHubComment(data *models.ReportData) error {
 	}
 
 	return nil
+}
+
+// buildReportData constructs ReportData based on whether dynamic or legacy paths are used
+func (r *RunnerGitHub) buildReportData(
+	rs *models.BuildManifestResult,
+	diffs map[string]models.EnvironmentDiff,
+	policyEval *models.PolicyEvaluation,
+) models.ReportData {
+	reportData := models.ReportData{
+		Timestamp:        time.Now(),
+		BaseCommit:       r.prInfo.BaseSHA,
+		HeadCommit:       r.prInfo.HeadSHA,
+		ManifestChanges:  diffs,
+		PolicyEvaluation: *policyEval,
+	}
+
+	if r.options.UseDynamicPaths() {
+		// Dynamic paths mode
+		overlayKeys := make([]string, 0, len(rs.EnvManifestBuild))
+		for overlayKey := range rs.EnvManifestBuild {
+			overlayKeys = append(overlayKeys, overlayKey)
+		}
+		reportData.OverlayKeys = overlayKeys
+		reportData.KustomizeBuildPath = r.options.KustomizeBuildPath
+		reportData.KustomizeBuildValues = r.options.KustomizeBuildValues
+		
+		// Set Service to empty for dynamic mode (or extract from path if needed)
+		reportData.Service = ""
+		// Keep Environments for backward compat in templates, same as OverlayKeys
+		reportData.Environments = overlayKeys
+	} else {
+		// Legacy mode
+		reportData.Service = r.options.Service
+		reportData.Environments = r.options.Environments
+		reportData.OverlayKeys = r.options.Environments
+	}
+
+	return reportData
 }
