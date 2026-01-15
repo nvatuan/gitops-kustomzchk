@@ -45,6 +45,10 @@ type KustomizeBuilder interface {
 	// Path here is a full path to service (manifestRoot + service), kustomize will be built at path+overlay
 	Build(ctx context.Context, path string, overlayName string) ([]byte, error)
 	BuildToText(ctx context.Context, path string, overlayName string) (string, error)
+
+	// BuildAtFullPath runs kustomize build directly at the given full path (no overlay logic)
+	// Used by the new dynamic path feature
+	BuildAtFullPath(ctx context.Context, fullPath string) ([]byte, error)
 }
 
 // Builder handles kustomize builds
@@ -87,6 +91,43 @@ func (b *Builder) BuildToText(ctx context.Context, path string, overlayName stri
 		return "", err
 	}
 	return string(bytes), nil
+}
+
+// BuildAtFullPath runs kustomize build directly at the given full path (no overlay logic)
+// Used by the new dynamic path feature
+func (b *Builder) BuildAtFullPath(ctx context.Context, fullPath string) ([]byte, error) {
+	if err := b.validateFullPath(fullPath); err != nil {
+		if errors.Is(err, ErrOverlayNotFound) {
+			return nil, ErrOverlayNotFound
+		}
+		return nil, err
+	}
+	return b.buildAtPath(ctx, fullPath)
+}
+
+// validateFullPath checks if a full path is valid for kustomize build
+func (b *Builder) validateFullPath(fullPath string) error {
+	logger.WithField("fullPath", fullPath).Info("Validating full path...")
+
+	// Check if path exists
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		if b.FailOnOverlayNotFound {
+			return fmt.Errorf("path '%s' not found", fullPath)
+		}
+		logger.WithField("fullPath", fullPath).Warn("Path not found, will skip")
+		return ErrOverlayNotFound
+	}
+
+	// Check if kustomization file exists
+	if !b.isKustomizeFileInPath(fullPath) {
+		if b.FailOnOverlayNotFound {
+			return fmt.Errorf("no kustomization file found at path '%s'", fullPath)
+		}
+		logger.WithField("fullPath", fullPath).Warn("No kustomization file found, will skip")
+		return ErrOverlayNotFound
+	}
+
+	return nil
 }
 
 // Build runs kustomize build on the specified path
