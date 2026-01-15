@@ -462,6 +462,11 @@ func (r *RunnerGitHub) buildReportData(
 		reportData.KustomizeBuildPath = r.options.KustomizeBuildPath
 		reportData.KustomizeBuildValues = r.options.KustomizeBuildValues
 
+		// Add parsed build values if PathBuilder is available
+		if r.options.PathBuilder != nil {
+			reportData.ParsedKustomizeBuildValues = r.options.PathBuilder.Variables
+		}
+
 		// Set Service to empty for dynamic mode (or extract from path if needed)
 		reportData.Service = ""
 		// Keep Environments for backward compat in templates, same as OverlayKeys

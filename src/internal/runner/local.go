@@ -233,6 +233,13 @@ func (r *RunnerLocal) buildReportData(
 		}
 		reportData.OverlayKeys = overlayKeys
 		reportData.Environments = overlayKeys // For backward compat in templates
+
+		// Add parsed build values (use BeforePathBuilder or AfterPathBuilder)
+		if r.Options.BeforePathBuilder != nil {
+			reportData.ParsedKustomizeBuildValues = r.Options.BeforePathBuilder.Variables
+		} else if r.Options.AfterPathBuilder != nil {
+			reportData.ParsedKustomizeBuildValues = r.Options.AfterPathBuilder.Variables
+		}
 	} else if r.Options.UseDynamicPaths() {
 		// Shared dynamic mode
 		reportData.KustomizeBuildPath = r.Options.KustomizeBuildPath
@@ -245,6 +252,11 @@ func (r *RunnerLocal) buildReportData(
 		}
 		reportData.OverlayKeys = overlayKeys
 		reportData.Environments = overlayKeys // For backward compat in templates
+
+		// Add parsed build values if PathBuilder is available
+		if r.Options.PathBuilder != nil {
+			reportData.ParsedKustomizeBuildValues = r.Options.PathBuilder.Variables
+		}
 	} else {
 		// Legacy mode
 		reportData.Service = r.Options.Service

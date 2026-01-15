@@ -73,9 +73,9 @@ run-local-old: build
 run-local: build
 	DEBUG=1 ${BIN_DIR}/${BINARY_NAME} --run-mode local \
 		--fail-on-overlay-not-found=false \
-		--lc-before-kustomize-build-path "test/local/before/services/my-app/clusters/[CLUSTER]/[ENV]" \
-		--lc-after-kustomize-build-path "test/local/after/services/my-app/clusters/[CLUSTER]/[ENV]" \
-		--kustomize-build-values "CLUSTER=alpha,beta;ENV=stg,prod" \
+		--lc-before-kustomize-build-path "test/local/before/services/[SERVICE]/clusters/[CLUSTER]/[ENV]" \
+		--lc-after-kustomize-build-path "test/local/after/services/[SERVICE]/clusters/[CLUSTER]/[ENV]" \
+		--kustomize-build-values "SERVICE=my-app;CLUSTER=alpha,beta;ENV=stg,prod" \
 		--policies-path test/local/policies \
 		--templates-path test/local/templates \
 		--output-dir test/local/output \
@@ -87,9 +87,9 @@ run-local: build
 run-local-dynamic: build
 	DEBUG=1 ${BIN_DIR}/${BINARY_NAME} --run-mode local \
 		--fail-on-overlay-not-found=false \
-		--lc-before-kustomize-build-path "test/ut_local_dynamic/before/services/my-app/clusters/[CLUSTER]/[ENV]" \
-		--lc-after-kustomize-build-path "test/ut_local_dynamic/after/services/my-app/clusters/[CLUSTER]/[ENV]" \
-		--kustomize-build-values "CLUSTER=alpha,beta;ENV=stg,prod" \
+		--lc-before-kustomize-build-path "test/ut_local_dynamic/before/services/[SERVICE]/clusters/[CLUSTER]/[ENV]" \
+		--lc-after-kustomize-build-path "test/ut_local_dynamic/after/services/[SERVICE]/clusters/[CLUSTER]/[ENV]" \
+		--kustomize-build-values "SERVICE=my-app;CLUSTER=alpha,beta;ENV=stg,prod" \
 		--policies-path test/ut_local_dynamic/policies \
 		--templates-path test/ut_local_dynamic/templates \
 		--output-dir test/output \

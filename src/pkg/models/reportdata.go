@@ -25,6 +25,10 @@ type ReportData struct {
 	KustomizeBuildPath   string `json:"kustomizeBuildPath,omitempty"`
 	KustomizeBuildValues string `json:"kustomizeBuildValues,omitempty"`
 
+	// ParsedKustomizeBuildValues contains the parsed variable values (dynamic mode only)
+	// Example: {"SERVICE": ["my-app"], "CLUSTER": ["alpha", "beta"], "ENV": ["stg", "prod"]}
+	ParsedKustomizeBuildValues map[string][]string `json:"parsedKustomizeBuildValues,omitempty"`
+
 	// Manifest changes per overlay key (or environment in legacy mode)
 	ManifestChanges map[string]EnvironmentDiff `json:"manifestChanges"`
 
