@@ -4,7 +4,7 @@ metadata:
   name: shared-config
   namespace: default
 data:
-  DATABASE_HOST: "dev-db.example.com"
-  CACHE_ENABLED: "false"
-  LOG_LEVEL: "debug"
+  DATABASE_HOST: "prod-db.example.com"
+  CACHE_ENABLED: "true"
+  LOG_LEVEL: "info"
 
