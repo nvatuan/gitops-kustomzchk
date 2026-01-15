@@ -2,95 +2,9 @@
 
 | Timestamp | Base | Head | Environments |
 -|-|-|-
-2026-01-14 17:58:11 UTC | base | head | `stg`, `prod`
+2026-01-15 14:31:59 UTC | base | head | `stg`, `prod`
 
 ## 📊 Manifest Changes
-
-
-
-
-### [`prod`]: `36` lines (32➕/4➖)
-
-
-
-```diff
---- before	2026-01-14 17:58:10
-+++ after	2026-01-14 17:58:10
-@@ -48,7 +48,7 @@
-           value: production
-         - name: LOG_LEVEL
-           value: info
--        image: nginx:1.21
-+        image: nginx:latest
-         livenessProbe:
-           failureThreshold: 3
-           httpGet:
-@@ -70,12 +70,45 @@
-           timeoutSeconds: 3
-         resources:
-           limits:
--            cpu: 1000m
-             memory: 512Mi
-           requests:
-             cpu: 500m
-             memory: 256Mi
- ---
-+apiVersion: batch/v1
-+kind: CronJob
-+metadata:
-+  labels:
-+    environment: prod
-+  name: prod-hello-world-cronjob
-+  namespace: my-app-prod
-+spec:
-+  failedJobsHistoryLimit: 1
-+  jobTemplate:
-+    metadata:
-+      labels:
-+        environment: prod
-+    spec:
-+      backoffLimit: 0
-+      template:
-+        metadata:
-+          labels:
-+            environment: prod
-+        spec:
-+          containers:
-+          - command:
-+            - /bin/sh
-+            - -c
-+            - |
-+              echo "hello world"
-+              sleep 1800  # 30 minutes = 1800 seconds
-+              echo "shutting down"
-+            image: busybox:1.35
-+            name: hello-world
-+          restartPolicy: Never
-+  schedule: 0 */12 * * *
-+  successfulJobsHistoryLimit: 3
-+---
- apiVersion: autoscaling/v2
- kind: HorizontalPodAutoscaler
- metadata:
-@@ -194,7 +227,7 @@
-   namespace: my-app-prod
- spec:
-   rules:
--  - host: my-app-prod.example.com
-+  - host: my-app.example.com
-     http:
-       paths:
-       - backend:
-@@ -206,5 +239,5 @@
-         pathType: Prefix
-   tls:
-   - hosts:
--    - my-app-prod.example.com
-+    - my-app.example.com
-     secretName: my-app-prod-tls
-
-```
-
 
 
 
@@ -100,8 +14,8 @@
 
 
 ```diff
---- before	2026-01-14 17:58:10
-+++ after	2026-01-14 17:58:10
+--- before	2026-01-15 14:31:59
++++ after	2026-01-15 14:31:59
 @@ -4,6 +4,7 @@
    labels:
      app: my-app
@@ -196,6 +110,93 @@
    namespace: my-app-stg
 
 ```
+
+
+
+
+
+### [`prod`]: `36` lines (32➕/4➖)
+
+
+
+```diff
+--- before	2026-01-15 14:31:59
++++ after	2026-01-15 14:31:59
+@@ -48,7 +48,7 @@
+           value: production
+         - name: LOG_LEVEL
+           value: info
+-        image: nginx:1.21
++        image: nginx:latest
+         livenessProbe:
+           failureThreshold: 3
+           httpGet:
+@@ -70,12 +70,45 @@
+           timeoutSeconds: 3
+         resources:
+           limits:
+-            cpu: 1000m
+             memory: 512Mi
+           requests:
+             cpu: 500m
+             memory: 256Mi
+ ---
++apiVersion: batch/v1
++kind: CronJob
++metadata:
++  labels:
++    environment: prod
++  name: prod-hello-world-cronjob
++  namespace: my-app-prod
++spec:
++  failedJobsHistoryLimit: 1
++  jobTemplate:
++    metadata:
++      labels:
++        environment: prod
++    spec:
++      backoffLimit: 0
++      template:
++        metadata:
++          labels:
++            environment: prod
++        spec:
++          containers:
++          - command:
++            - /bin/sh
++            - -c
++            - |
++              echo "hello world"
++              sleep 1800  # 30 minutes = 1800 seconds
++              echo "shutting down"
++            image: busybox:1.35
++            name: hello-world
++          restartPolicy: Never
++  schedule: 0 */12 * * *
++  successfulJobsHistoryLimit: 3
++---
+ apiVersion: autoscaling/v2
+ kind: HorizontalPodAutoscaler
+ metadata:
+@@ -194,7 +227,7 @@
+   namespace: my-app-prod
+ spec:
+   rules:
+-  - host: my-app-prod.example.com
++  - host: my-app.example.com
+     http:
+       paths:
+       - backend:
+@@ -206,5 +239,5 @@
+         pathType: Prefix
+   tls:
+   - hosts:
+-    - my-app-prod.example.com
++    - my-app.example.com
+     secretName: my-app-prod-tls
+
+```
+
 
 
 
