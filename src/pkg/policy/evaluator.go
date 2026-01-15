@@ -147,6 +147,28 @@ func (e *PolicyEvaluator) loadComplianceConfig() error {
 	if err := yaml.Unmarshal(data, &e.data.ComplianceConfig); err != nil {
 		return fmt.Errorf("failed to parse compliance config: %w", err)
 	}
+
+	// Extract policy IDs in order from YAML using MapSlice
+	var rawConfig yaml.MapSlice
+	if err := yaml.Unmarshal(data, &rawConfig); err != nil {
+		return fmt.Errorf("failed to parse compliance config for ordering: %w", err)
+	}
+
+	// Find the "policies" key and extract ordered policy IDs
+	for _, item := range rawConfig {
+		if key, ok := item.Key.(string); ok && key == "policies" {
+			if policiesSlice, ok := item.Value.(yaml.MapSlice); ok {
+				e.data.ComplianceConfig.PolicyIDs = make([]string, 0, len(policiesSlice))
+				for _, policyItem := range policiesSlice {
+					if policyID, ok := policyItem.Key.(string); ok {
+						e.data.ComplianceConfig.PolicyIDs = append(e.data.ComplianceConfig.PolicyIDs, policyID)
+					}
+				}
+			}
+			break
+		}
+	}
+
 	return nil
 }
 
@@ -275,7 +297,12 @@ func (e *PolicyEvaluator) GeneratePolicyEvalResultForManifests(
 		recommendPolicies := []models.PolicyResult{}
 		overriddenPolicies := []models.PolicyResult{}
 		notInEffectPolicies := []models.PolicyResult{}
-		for policyId, result := range envToPolicyIdToResult[env] {
+		// Iterate policies in config order
+		for _, policyId := range e.data.ComplianceConfig.PolicyIDs {
+			result, ok := envToPolicyIdToResult[env][policyId]
+			if !ok {
+				continue // Policy not evaluated for this environment
+			}
 			totalCnt++
 			if result.IsPassing {
 				successCnt++
@@ -395,8 +422,8 @@ func (e *PolicyEvaluator) Evaluate(
 		return nil, fmt.Errorf("failed to write manifest to temp file: %w", err)
 	}
 
-	// Evaluate each policy using conftest
-	for id := range e.data.ComplianceConfig.Policies {
+	// Evaluate each policy using conftest (in order from config)
+	for _, id := range e.data.ComplianceConfig.PolicyIDs {
 		failMsgs, err := e.evaluatePolicyWithConftest(
 			ctx, id, e.data.fullPathToPolicy[id], tmpFile.Name(),
 		)
