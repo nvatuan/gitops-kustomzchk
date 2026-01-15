@@ -424,4 +424,3 @@ func TestPathBuilder_GetRelativePaths(t *testing.T) {
 		t.Errorf("GetRelativePaths() = %v, want %v", paths, expected)
 	}
 }
-

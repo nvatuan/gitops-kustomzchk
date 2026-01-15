@@ -222,4 +222,3 @@ func (pb *PathBuilder) GetRelativePaths() ([]string, error) {
 	}
 	return paths, nil
 }
-

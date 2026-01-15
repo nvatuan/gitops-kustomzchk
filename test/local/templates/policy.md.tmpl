@@ -25,7 +25,6 @@
 
 </details>
 
-
 <details><summary>Policy Evaluation Details</summary>
 
 {{range $overlayKey := .OverlayKeys}}{{$matrix := index $.PolicyEvaluation.PolicyMatrix $overlayKey}}
@@ -37,7 +36,6 @@
 {{range $policy := $matrix.BlockingPolicies}}- {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
 {{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
 {{end}}{{end}}{{end}}
-
 {{end}}
 
 {{if gt (len $matrix.WarningPolicies) 0}}
@@ -46,7 +44,6 @@
 {{range $policy := $matrix.WarningPolicies}}- {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
 {{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
 {{end}}{{end}}{{end}}
-
 {{end}}
 
 {{if gt (len $matrix.RecommendPolicies) 0}}
@@ -55,7 +52,6 @@
 {{range $policy := $matrix.RecommendPolicies}}- {{$policy.PolicyName}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
 {{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
 {{end}}{{end}}{{end}}
-
 {{end}}
 
 {{if gt (len $matrix.OverriddenPolicies) 0}}
@@ -64,21 +60,14 @@
 {{range $policy := $matrix.OverriddenPolicies}}- {{$policy.PolicyName}}: {{if $policy.IsPassing}}✅ PASS{{else}}⚠️ WOULD FAIL (overridden by `{{$policy.OverrideCommand}}`){{end}}
 {{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
 {{end}}{{end}}{{end}}
-
 {{end}}
 
 {{if gt (len $matrix.NotInEffectPolicies) 0}}
 #### ⏭️ Not In Effect Policies
 
 {{range $policy := $matrix.NotInEffectPolicies}}- {{$policy.PolicyName}}: {{if $policy.IsPassing}}✅ PASS{{else}}⚠️ WOULD FAIL (not in effect yet){{end}}
-{{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
+{{- if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
 {{end}}{{end}}{{end}}
-
 {{end}}
-
-
-
-{{end}}
-
+{{- end}}
 </details>
-
