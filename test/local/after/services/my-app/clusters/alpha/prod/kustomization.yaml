@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: my-app-alpha-prod
+
+resources:
+- ../../../base
+
+commonLabels:
+  cluster: alpha
+  environment: prod
+
+namePrefix: alpha-prod-
+
+replicas:
+- name: my-app
+  count: 3
+

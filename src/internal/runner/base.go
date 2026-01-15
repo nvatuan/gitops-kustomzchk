@@ -85,6 +85,15 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 
 	logger.Info("BuildManifests: starting...")
 
+	// Check if using dynamic paths or legacy mode
+	if r.Options.UseDynamicPaths() {
+		return r.buildManifestsDynamic(ctx, beforePath, afterPath)
+	}
+	return r.buildManifestsLegacy(ctx, beforePath, afterPath)
+}
+
+// buildManifestsLegacy handles the legacy --service + --environments mode
+func (r *RunnerBase) buildManifestsLegacy(ctx context.Context, beforePath, afterPath string) (*models.BuildManifestResult, error) {
 	results := make(map[string]models.BuildEnvManifestResult)
 	envs := r.Options.Environments
 	for _, env := range envs {
@@ -97,6 +106,7 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 				// Overlay doesn't exist, mark as skipped
 				logger.WithField("env", env).Warn("Environment overlay not found for before path, marking as skipped")
 				results[env] = models.BuildEnvManifestResult{
+					OverlayKey:  env,
 					Environment: env,
 					Skipped:     true,
 					SkipReason:  "overlay not found in before path",
@@ -115,6 +125,7 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 				// Overlay doesn't exist, mark as skipped
 				logger.WithField("env", env).Warn("Environment overlay not found for after path, marking as skipped")
 				results[env] = models.BuildEnvManifestResult{
+					OverlayKey:  env,
 					Environment: env,
 					Skipped:     true,
 					SkipReason:  "overlay not found in after path",
@@ -126,6 +137,7 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 			return nil, err
 		}
 		results[env] = models.BuildEnvManifestResult{
+			OverlayKey:     env,
 			Environment:    env,
 			BeforeManifest: beforeManifest,
 			AfterManifest:  afterManifest,
@@ -135,6 +147,78 @@ func (r *RunnerBase) BuildManifests(beforePath, afterPath string) (*models.Build
 		logger.WithField("env", env).WithField("afterManifest", string(afterManifest)).Debug("Built Manifest")
 
 		envSpan.End()
+	}
+
+	logger.Info("BuildManifests: done.")
+	return &models.BuildManifestResult{
+		EnvManifestBuild: results,
+	}, nil
+}
+
+// buildManifestsDynamic handles the new --kustomize-build-path + --kustomize-build-values mode
+func (r *RunnerBase) buildManifestsDynamic(ctx context.Context, beforeRoot, afterRoot string) (*models.BuildManifestResult, error) {
+	pathCombos, err := r.Options.PathBuilder.GenerateAllPaths()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate path combinations: %w", err)
+	}
+
+	results := make(map[string]models.BuildEnvManifestResult)
+
+	for _, combo := range pathCombos {
+		comboCtx, comboSpan := trace.StartSpan(ctx, fmt.Sprintf("BuildManifests.%s", combo.OverlayKey))
+
+		beforeFullPath := filepath.Join(beforeRoot, combo.Path)
+		afterFullPath := filepath.Join(afterRoot, combo.Path)
+
+		logger.WithField("overlayKey", combo.OverlayKey).WithField("beforePath", beforeFullPath).Info("Building before manifest...")
+		beforeManifest, err := r.Builder.BuildAtFullPath(comboCtx, beforeFullPath)
+		if err != nil {
+			if errors.Is(err, kustomize.ErrOverlayNotFound) {
+				logger.WithField("overlayKey", combo.OverlayKey).Warn("Overlay not found for before path, marking as skipped")
+				results[combo.OverlayKey] = models.BuildEnvManifestResult{
+					OverlayKey:    combo.OverlayKey,
+					Environment:   combo.OverlayKey, // For backward compat
+					FullBuildPath: combo.Path,
+					Skipped:       true,
+					SkipReason:    "overlay not found in before path",
+				}
+				comboSpan.End()
+				continue
+			}
+			comboSpan.End()
+			return nil, err
+		}
+
+		logger.WithField("overlayKey", combo.OverlayKey).WithField("afterPath", afterFullPath).Info("Building after manifest...")
+		afterManifest, err := r.Builder.BuildAtFullPath(comboCtx, afterFullPath)
+		if err != nil {
+			if errors.Is(err, kustomize.ErrOverlayNotFound) {
+				logger.WithField("overlayKey", combo.OverlayKey).Warn("Overlay not found for after path, marking as skipped")
+				results[combo.OverlayKey] = models.BuildEnvManifestResult{
+					OverlayKey:    combo.OverlayKey,
+					Environment:   combo.OverlayKey,
+					FullBuildPath: combo.Path,
+					Skipped:       true,
+					SkipReason:    "overlay not found in after path",
+				}
+				comboSpan.End()
+				continue
+			}
+			comboSpan.End()
+			return nil, err
+		}
+
+		results[combo.OverlayKey] = models.BuildEnvManifestResult{
+			OverlayKey:     combo.OverlayKey,
+			Environment:    combo.OverlayKey, // For backward compat
+			FullBuildPath:  combo.Path,
+			BeforeManifest: beforeManifest,
+			AfterManifest:  afterManifest,
+			Skipped:        false,
+		}
+		logger.WithField("overlayKey", combo.OverlayKey).Debug("Built Manifest")
+
+		comboSpan.End()
 	}
 
 	logger.Info("BuildManifests: done.")

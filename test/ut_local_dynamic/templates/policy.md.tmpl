@@ -1,0 +1,53 @@
+## 🛡️ Policy Evaluation
+
+| **Overlay Key** | **Success** | **Omitted** | **Failed (Blocking 🚫, Warning ⚠️, Recommend 💡)** |
+|-----------------|-------------|-------------|--------------------------------------------------|
+{{range $key, $sum := .PolicyEvaluation.EnvironmentSummary}}| `{{ $key }}` | `{{ $sum.PolicyCounts.TotalSuccess }}`✅ | `{{ $sum.PolicyCounts.TotalOmitted }}`⏭️ | `{{ $sum.PolicyCounts.TotalFailed }}`❌ (`{{ $sum.PolicyCounts.BlockingFailedCount }}`🚫, `{{ $sum.PolicyCounts.WarningFailedCount }}`⚠️, `{{ $sum.PolicyCounts.RecommendFailedCount }}`💡) |
+{{ end }}
+
+<details><summary>Policy Evaluation Details</summary>
+
+{{range $key, $matrix := .PolicyEvaluation.PolicyMatrix}}
+### Overlay: `{{ $key }}`
+
+{{if $matrix.BlockingPolicies}}
+#### 🚫 Blocking Policies
+{{range $policy := $matrix.BlockingPolicies}}
+- {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
+{{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
+{{end}}{{end}}{{end}}
+{{end}}
+
+{{if $matrix.WarningPolicies}}
+#### ⚠️ Warning Policies
+{{range $policy := $matrix.WarningPolicies}}
+- {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
+{{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
+{{end}}{{end}}{{end}}
+{{end}}
+
+{{if $matrix.RecommendPolicies}}
+#### 💡 Recommend Policies
+{{range $policy := $matrix.RecommendPolicies}}
+- {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
+{{if not $policy.IsPassing}}{{range $msg := $policy.FailMessages}}  - {{$msg}}
+{{end}}{{end}}{{end}}
+{{end}}
+
+{{if $matrix.OverriddenPolicies}}
+#### ⏭️ Overridden Policies
+{{range $policy := $matrix.OverriddenPolicies}}
+- {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
+{{end}}
+{{end}}
+
+{{if $matrix.NotInEffectPolicies}}
+#### ⏭️ Not In Effect Policies
+{{range $policy := $matrix.NotInEffectPolicies}}
+- {{if $policy.ExternalLink}}[{{$policy.PolicyName}}]({{$policy.ExternalLink}}){{else}}{{$policy.PolicyName}}{{end}}: {{if $policy.IsPassing}}✅ PASS{{else}}❌ FAIL{{end}}
+{{end}}
+{{end}}
+
+{{end}}
+
+</details>

@@ -4,8 +4,10 @@ import "time"
 
 // ComplianceConfig represents the complete compliance configuration
 // - Policies: id -> PolicyConfig
+// - PolicyIDs: ordered list of policy IDs (preserves YAML order)
 type ComplianceConfig struct {
-	Policies map[string]PolicyConfig `yaml:"policies"`
+	Policies  map[string]PolicyConfig `yaml:"policies"`
+	PolicyIDs []string                `yaml:"-"` // Not in YAML, populated during load
 }
 
 // PolicyConfig represents a single policy configuration

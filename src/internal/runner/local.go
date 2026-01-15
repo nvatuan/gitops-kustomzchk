@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -59,9 +60,24 @@ func (r *RunnerLocal) Process() error {
 
 	logger.Info("Process: starting...")
 
-	beforePath := filepath.Join(r.Options.LcBeforeManifestsPath, r.Options.Service)
-	afterPath := filepath.Join(r.Options.LcAfterManifestsPath, r.Options.Service)
-	rs, err := r.BuildManifests(beforePath, afterPath)
+	var rs *models.BuildManifestResult
+	var err error
+
+	if r.Options.UseLocalDynamicPaths() {
+		// Local dynamic mode with separate before/after path templates
+		rs, err = r.buildManifestsLocalDynamic(ctx)
+	} else if r.Options.UseDynamicPaths() {
+		// Shared dynamic mode: use the before/after paths directly as roots
+		beforePath := r.Options.LcBeforeManifestsPath
+		afterPath := r.Options.LcAfterManifestsPath
+		rs, err = r.BuildManifests(beforePath, afterPath)
+	} else {
+		// Legacy mode: append service name to paths
+		beforePath := filepath.Join(r.Options.LcBeforeManifestsPath, r.Options.Service)
+		afterPath := filepath.Join(r.Options.LcAfterManifestsPath, r.Options.Service)
+		rs, err = r.BuildManifests(beforePath, afterPath)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -82,20 +98,173 @@ func (r *RunnerLocal) Process() error {
 	evalSpan.End()
 	logger.WithField("results", policyEval).Debug("Evaluated Policies")
 
-	reportData := models.ReportData{
-		Service:          r.Options.Service,
-		Timestamp:        time.Now(),
-		BaseCommit:       "base",
-		HeadCommit:       "head",
-		Environments:     r.Options.Environments,
-		ManifestChanges:  diffs,
-		PolicyEvaluation: *policyEval,
-	}
+	// Build report data
+	reportData := r.buildReportData(rs, diffs, policyEval)
 
 	if err := r.Output(&reportData); err != nil {
 		return err
 	}
 	return nil
+}
+
+// buildManifestsLocalDynamic handles local mode with separate before/after path templates
+func (r *RunnerLocal) buildManifestsLocalDynamic(ctx context.Context) (*models.BuildManifestResult, error) {
+	_, span := trace.StartSpan(ctx, "BuildManifestsLocalDynamic")
+	defer span.End()
+
+	logger.Info("BuildManifestsLocalDynamic: starting...")
+
+	// Generate paths from before path builder
+	beforeCombos, err := r.Options.BeforePathBuilder.GenerateAllPaths()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate before path combinations: %w", err)
+	}
+
+	// Generate paths from after path builder
+	afterCombos, err := r.Options.AfterPathBuilder.GenerateAllPaths()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate after path combinations: %w", err)
+	}
+
+	// Create a map of after paths by overlay key for quick lookup
+	afterPathMap := make(map[string]string)
+	for _, combo := range afterCombos {
+		afterPathMap[combo.OverlayKey] = combo.Path
+	}
+
+	results := make(map[string]models.BuildEnvManifestResult)
+
+	for _, beforeCombo := range beforeCombos {
+		overlayKey := beforeCombo.OverlayKey
+		comboCtx, comboSpan := trace.StartSpan(ctx, fmt.Sprintf("BuildManifests.%s", overlayKey))
+
+		afterPath, exists := afterPathMap[overlayKey]
+		if !exists {
+			logger.WithField("overlayKey", overlayKey).Warn("No matching after path for overlay key, skipping")
+			results[overlayKey] = models.BuildEnvManifestResult{
+				OverlayKey:  overlayKey,
+				Environment: overlayKey,
+				Skipped:     true,
+				SkipReason:  "no matching after path",
+			}
+			comboSpan.End()
+			continue
+		}
+
+		logger.WithField("overlayKey", overlayKey).WithField("beforePath", beforeCombo.Path).Info("Building before manifest...")
+		beforeManifest, err := r.Builder.BuildAtFullPath(comboCtx, beforeCombo.Path)
+		if err != nil {
+			if errors.Is(err, kustomize.ErrOverlayNotFound) {
+				logger.WithField("overlayKey", overlayKey).Warn("Overlay not found for before path, marking as skipped")
+				results[overlayKey] = models.BuildEnvManifestResult{
+					OverlayKey:    overlayKey,
+					Environment:   overlayKey,
+					FullBuildPath: beforeCombo.Path,
+					Skipped:       true,
+					SkipReason:    "overlay not found in before path",
+				}
+				comboSpan.End()
+				continue
+			}
+			comboSpan.End()
+			return nil, err
+		}
+
+		logger.WithField("overlayKey", overlayKey).WithField("afterPath", afterPath).Info("Building after manifest...")
+		afterManifest, err := r.Builder.BuildAtFullPath(comboCtx, afterPath)
+		if err != nil {
+			if errors.Is(err, kustomize.ErrOverlayNotFound) {
+				logger.WithField("overlayKey", overlayKey).Warn("Overlay not found for after path, marking as skipped")
+				results[overlayKey] = models.BuildEnvManifestResult{
+					OverlayKey:    overlayKey,
+					Environment:   overlayKey,
+					FullBuildPath: afterPath,
+					Skipped:       true,
+					SkipReason:    "overlay not found in after path",
+				}
+				comboSpan.End()
+				continue
+			}
+			comboSpan.End()
+			return nil, err
+		}
+
+		results[overlayKey] = models.BuildEnvManifestResult{
+			OverlayKey:     overlayKey,
+			Environment:    overlayKey,
+			FullBuildPath:  afterPath, // Store the after path
+			BeforeManifest: beforeManifest,
+			AfterManifest:  afterManifest,
+			Skipped:        false,
+		}
+		logger.WithField("overlayKey", overlayKey).Debug("Built Manifest")
+
+		comboSpan.End()
+	}
+
+	logger.Info("BuildManifestsLocalDynamic: done.")
+	return &models.BuildManifestResult{
+		EnvManifestBuild: results,
+	}, nil
+}
+
+// buildReportData constructs the ReportData based on legacy or dynamic mode
+func (r *RunnerLocal) buildReportData(
+	rs *models.BuildManifestResult,
+	diffs map[string]models.EnvironmentDiff,
+	policyEval *models.PolicyEvaluation,
+) models.ReportData {
+	reportData := models.ReportData{
+		Timestamp:        time.Now(),
+		BaseCommit:       "base",
+		HeadCommit:       "head",
+		ManifestChanges:  diffs,
+		PolicyEvaluation: *policyEval,
+	}
+
+	if r.Options.UseLocalDynamicPaths() {
+		// Local dynamic mode with separate before/after paths
+		reportData.KustomizeBuildValues = r.Options.KustomizeBuildValues
+
+		// Extract overlay keys from results
+		overlayKeys := make([]string, 0, len(rs.EnvManifestBuild))
+		for key := range rs.EnvManifestBuild {
+			overlayKeys = append(overlayKeys, key)
+		}
+		reportData.OverlayKeys = overlayKeys
+		reportData.Environments = overlayKeys // For backward compat in templates
+
+		// Add parsed build values (use BeforePathBuilder or AfterPathBuilder)
+		if r.Options.BeforePathBuilder != nil {
+			reportData.ParsedKustomizeBuildValues = r.Options.BeforePathBuilder.Variables
+		} else if r.Options.AfterPathBuilder != nil {
+			reportData.ParsedKustomizeBuildValues = r.Options.AfterPathBuilder.Variables
+		}
+	} else if r.Options.UseDynamicPaths() {
+		// Shared dynamic mode
+		reportData.KustomizeBuildPath = r.Options.KustomizeBuildPath
+		reportData.KustomizeBuildValues = r.Options.KustomizeBuildValues
+
+		// Extract overlay keys from results
+		overlayKeys := make([]string, 0, len(rs.EnvManifestBuild))
+		for key := range rs.EnvManifestBuild {
+			overlayKeys = append(overlayKeys, key)
+		}
+		reportData.OverlayKeys = overlayKeys
+		reportData.Environments = overlayKeys // For backward compat in templates
+
+		// Add parsed build values if PathBuilder is available
+		if r.Options.PathBuilder != nil {
+			reportData.ParsedKustomizeBuildValues = r.Options.PathBuilder.Variables
+		}
+	} else {
+		// Legacy mode
+		reportData.Service = r.Options.Service
+		reportData.Environments = r.Options.Environments
+		reportData.OverlayKeys = r.Options.Environments // For consistency
+	}
+
+	return reportData
 }
 
 func (r *RunnerLocal) Output(data *models.ReportData) error {
