@@ -1,9 +1,9 @@
 ## 📊 Manifest Changes
 
 {{if .ManifestChanges}}
-{{range $env, $diff := .ManifestChanges}}
+{{range $overlayKey := .OverlayKeys}}{{$diff := index $.ManifestChanges $overlayKey}}
 
-### [`{{$env}}`]: {{if gt $diff.LineCount 0}}`{{$diff.LineCount}}` lines ({{$diff.AddedLineCount}}➕/{{$diff.DeletedLineCount}}➖){{else}}No changes detected.{{end}}
+### [`{{$overlayKey}}`]: {{if gt $diff.LineCount 0}}`{{$diff.LineCount}}` lines ({{$diff.AddedLineCount}}➕/{{$diff.DeletedLineCount}}➖){{else}}No changes detected.{{end}}
 
 {{if gt $diff.LineCount 0}}
 {{if eq $diff.ContentType "ext_ghartifact"}}

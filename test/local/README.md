@@ -1,3 +1,5 @@
+This is new test fixture for local testing for version after v0.5 inclusive, after introduction of DYNAMIC build path
+
 ## Version
 
 ```bash
