@@ -11,15 +11,6 @@ GitOps policy enforcement tool for Kubernetes manifests managed with Kustomize.
 
 `gitops-kustomzchk` is designed to run in GitHub Actions CI on Pull Requests for GitOps Kubernetes manifest workflows. It sequentially builds Kubernetes manifest changes with Kustomize, evaluates them against OPA policies, provides detailed reports, and can comment on GitHub PRs.
 
-**Key Features:**
-- 🔀 **Dynamic Path Support**: Flexible overlay structures with variable-based path templates
-- 📊 **Multi-Environment Testing**: Test across multiple environments/overlays in a single run
-- 🛡️ **Policy Enforcement**: OPA-based policy evaluation with configurable enforcement levels
-- 💬 **GitHub Integration**: Automatic PR comments with detailed reports
-- ⚡ **Performance Optimized**: Sparse checkout and parallel builds for faster CI runs
-- 📈 **Observability**: OpenTelemetry-based performance tracing
-
-
 <p align="center">
   <img src="docs/gitops-kustomzchk-flow.png" alt="gitops-kustomzchk flow overview" width="500"/>
 </p>
@@ -84,6 +75,8 @@ gitops-kustomzchk \
 
 #### Legacy Mode (Backward Compatible)
 
+<details>  <summary> Legacy commands </summary>
+
 Fixed service + environments structure:
 
 ```bash
@@ -108,6 +101,8 @@ gitops-kustomzchk \
   --output-dir ./output \
   --enable-export-report true
 ```
+
+</details>
 
 **Additional Flags:**
 - `--enable-export-performance-report`: Export OpenTelemetry performance metrics
