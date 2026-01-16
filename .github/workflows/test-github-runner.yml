@@ -204,7 +204,7 @@ jobs:
             --kustomize-build-path "${{ matrix.config.build_path }}" \
             --kustomize-build-values "${{ matrix.config.build_values }}" \
             --policies-path ${{ env.MANIFESTS_PATH }}/policies \
-            --templates-path ${{ env.MANIFESTS_PATH }}/templates \
+            --templates-path ${{ env.MANIFESTS_PATH }}/templates_deep_overlay \
             --output-dir output \
             --enable-export-report true \
             --debug true
