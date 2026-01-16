@@ -12,7 +12,7 @@ const COMMENT_MARKER = "<!-- gitops-kustomz: auto-generated comment, please do n
 
 var (
 	Version   = "dev"
-	BuildTime = "unknown"
+	BuildTime = "testing123"
 )
 
 func main() {
