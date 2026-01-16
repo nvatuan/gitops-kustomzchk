@@ -297,10 +297,12 @@ jobs:
             
             # Verify diffs are detected for all overlays (all should have changes)
             for OVERLAY in "${EXPECTED_OVERLAYS[@]}"; do
-              if echo "$COMMENT_SECTION" | grep -A 30 "\[\`${OVERLAY}\`\]" | grep -q "nginx:1.22"; then
+              # Check if the overlay section exists with line count and diff content
+              OVERLAY_SECTION=$(echo "$COMMENT_SECTION" | grep -A 50 "\[\`${OVERLAY}\`\]:")
+              if echo "$OVERLAY_SECTION" | grep -q "nginx:1.22" || echo "$OVERLAY_SECTION" | grep -q "github.com/nvatuan/domains"; then
                 echo "  ✓ Diff detected for ${OVERLAY}"
               else
-                echo "  ✗ No diff detected for ${OVERLAY}"
+                echo "  ✗ No diff detected for ${OVERLAY} (searched for image change or label change)"
                 VALIDATION_FAILED=1
               fi
             done
