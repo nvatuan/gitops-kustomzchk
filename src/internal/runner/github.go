@@ -454,11 +454,8 @@ func (r *RunnerGitHub) buildReportData(
 
 	if r.options.UseDynamicPaths() {
 		// Dynamic paths mode
-		overlayKeys := make([]string, 0, len(rs.EnvManifestBuild))
-		for overlayKey := range rs.EnvManifestBuild {
-			overlayKeys = append(overlayKeys, overlayKey)
-		}
-		reportData.OverlayKeys = overlayKeys
+		// Use the ordered OverlayKeys from BuildManifestResult to preserve ordering
+		reportData.OverlayKeys = rs.OverlayKeys
 		reportData.KustomizeBuildPath = r.options.KustomizeBuildPath
 		reportData.KustomizeBuildValues = r.options.KustomizeBuildValues
 
@@ -470,7 +467,7 @@ func (r *RunnerGitHub) buildReportData(
 		// Set Service to empty for dynamic mode (or extract from path if needed)
 		reportData.Service = ""
 		// Keep Environments for backward compat in templates, same as OverlayKeys
-		reportData.Environments = overlayKeys
+		reportData.Environments = rs.OverlayKeys
 	} else {
 		// Legacy mode
 		reportData.Service = r.options.Service
