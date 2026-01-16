@@ -223,6 +223,87 @@ jobs:
           # Save comment to file for validation
           echo "$COMMENTS" > /tmp/pr-comment.md
 
+      - name: Validate service-specific comments
+        run: |
+          COMMENT=$(cat /tmp/pr-comment.md)
+          
+          echo "=== Validating Service Comments ==="
+          
+          # Expected services based on test data
+          # We should have comments for:
+          # 1. my-app (legacy mode, stg/prod)
+          # 2. my-app-shallow-clone (legacy mode, stg/prod)
+          # 3. my-app-deep-overlay (dynamic mode, alpha/stg, alpha/prod, beta/stg, beta/prod)
+          
+          VALIDATION_FAILED=0
+          
+          # Check for my-app (legacy)
+          echo "Checking for my-app service..."
+          if echo "$COMMENT" | grep -q "gitops-kustomzchk: my-app"; then
+            echo "✓ Found my-app service comment"
+            # Should have stg and prod
+            if echo "$COMMENT" | grep "gitops-kustomzchk: my-app" -A 50 | grep -q "\`stg\`"; then
+              echo "  ✓ Found stg environment"
+            else
+              echo "  ✗ Missing stg environment for my-app"
+              VALIDATION_FAILED=1
+            fi
+            if echo "$COMMENT" | grep "gitops-kustomzchk: my-app" -A 50 | grep -q "\`prod\`"; then
+              echo "  ✓ Found prod environment"
+            else
+              echo "  ✗ Missing prod environment for my-app"
+              VALIDATION_FAILED=1
+            fi
+          else
+            echo "::warning::my-app service comment not found (might not have changes)"
+          fi
+          
+          # Check for my-app-deep-overlay (dynamic mode)
+          echo "Checking for my-app-deep-overlay service..."
+          if echo "$COMMENT" | grep -q "gitops-kustomzchk: dynamic-paths"; then
+            echo "✓ Found dynamic-paths comment (my-app-deep-overlay)"
+            # Should have all 4 overlays: SERVICE/CLUSTER/ENV format
+            EXPECTED_OVERLAYS=(
+              "my-app-deep-overlay/alpha/stg"
+              "my-app-deep-overlay/alpha/prod"
+              "my-app-deep-overlay/beta/stg"
+              "my-app-deep-overlay/beta/prod"
+            )
+            
+            for OVERLAY in "${EXPECTED_OVERLAYS[@]}"; do
+              if echo "$COMMENT" | grep "gitops-kustomzchk: dynamic-paths" -A 200 | grep -q "\`${OVERLAY}\`"; then
+                echo "  ✓ Found overlay: ${OVERLAY}"
+              else
+                echo "  ✗ Missing overlay: ${OVERLAY}"
+                VALIDATION_FAILED=1
+              fi
+            done
+            
+            # Check ordering - alpha should come before beta
+            COMMENT_SECTION=$(echo "$COMMENT" | grep "gitops-kustomzchk: dynamic-paths" -A 200)
+            ALPHA_LINE=$(echo "$COMMENT_SECTION" | grep -n "alpha" | head -1 | cut -d: -f1)
+            BETA_LINE=$(echo "$COMMENT_SECTION" | grep -n "beta" | head -1 | cut -d: -f1)
+            
+            if [ -n "$ALPHA_LINE" ] && [ -n "$BETA_LINE" ] && [ "$ALPHA_LINE" -lt "$BETA_LINE" ]; then
+              echo "  ✓ Overlay ordering is correct (alpha before beta)"
+            else
+              echo "  ✗ Overlay ordering might be incorrect"
+              VALIDATION_FAILED=1
+            fi
+          else
+            echo "::error::my-app-deep-overlay (dynamic-paths) comment not found"
+            VALIDATION_FAILED=1
+          fi
+          
+          if [ $VALIDATION_FAILED -eq 1 ]; then
+            echo "::error::Service validation failed"
+            echo "Full comment content:"
+            cat /tmp/pr-comment.md
+            exit 1
+          fi
+          
+          echo "✅ All service validations passed"
+
       - name: Validate comment content
         run: |
           COMMENT=$(cat /tmp/pr-comment.md)

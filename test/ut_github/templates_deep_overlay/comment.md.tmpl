@@ -1,0 +1,9 @@
+# 🔍 GitOps Policy Check: {{index .ParsedKustomizeBuildValues "SERVICE" 0}}
+
+| Timestamp | Base | Head | Environments |
+-|-|-|-
+{{.Timestamp.Format "2006-01-02 15:04:05 UTC"}} | {{.BaseCommit}} | {{.HeadCommit}} | {{range $i, $env := .Environments}}{{if $i}}, {{end}}`{{$env}}`{{end}}
+
+{{template "diff" .}}
+
+{{template "policy" .}}
