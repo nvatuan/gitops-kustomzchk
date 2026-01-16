@@ -6,21 +6,20 @@ resources:
 
 namePrefix: alpha-prod-
 
-patches:
-  - target:
-      kind: Deployment
-      name: my-app-deep
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 3
-      - op: replace
-        path: /spec/template/spec/containers/0/image
-        value: nginx:1.21-alpine
-      - op: add
-        path: /metadata/labels/cluster
-        value: alpha
-      - op: add
-        path: /metadata/labels/environment
-        value: prod
-
+# patches:
+#   - target:
+#       kind: Deployment
+#       name: my-app-deep
+#     patch: |-
+#       - op: replace
+#         path: /spec/replicas
+#         value: 3
+#       - op: replace
+#         path: /spec/template/spec/containers/0/image
+#         value: nginx:1.21-alpine
+#       - op: add
+#         path: /metadata/labels/cluster
+#         value: alpha
+#       - op: add
+#         path: /metadata/labels/environment
+#         value: prod
