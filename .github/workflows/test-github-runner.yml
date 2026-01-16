@@ -23,7 +23,7 @@ jobs:
     name: Detect Changed Services
     runs-on: ubuntu-latest
     outputs:
-      services: ${{ steps.detect.outputs.services }}
+      services_matrix: ${{ steps.detect.outputs.services_matrix }}
       has_changes: ${{ steps.detect.outputs.has_changes }}
     steps:
       - name: Get PR details
@@ -63,7 +63,7 @@ jobs:
           
           if [ -z "$SERVICE_CHANGES" ]; then
             echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "services=[]" >> $GITHUB_OUTPUT
+            echo "services_matrix=[]" >> $GITHUB_OUTPUT
             echo "No service changes detected"
             exit 0
           fi
@@ -72,20 +72,50 @@ jobs:
           
           # Extract unique service names (5th field in path: test/ut_github/{before|after}/services/SERVICE_NAME/...)
           # Exclude common-configmap as it's a shared resource, not a service to test
-          SERVICES=$(echo "$SERVICE_CHANGES" | cut -d/ -f5 | sort -u | grep -v "^common-configmap$" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          SERVICES=$(echo "$SERVICE_CHANGES" | cut -d/ -f5 | sort -u | grep -v "^common-configmap$")
           
-          echo "services=$SERVICES" >> $GITHUB_OUTPUT
-          echo "Detected services: $SERVICES"
+          # Build matrix JSON with service-specific configurations
+          MATRIX_JSON="["
+          FIRST=true
+          for SERVICE in $SERVICES; do
+            if [ "$FIRST" = false ]; then
+              MATRIX_JSON="$MATRIX_JSON,"
+            fi
+            FIRST=false
+            
+            case "$SERVICE" in
+              "my-app")
+                # Legacy mode
+                MATRIX_JSON="$MATRIX_JSON{\"service\":\"$SERVICE\",\"mode\":\"legacy\",\"strategy\":\"sparse\",\"environments\":\"stg,prod\"}"
+                ;;
+              "my-app-shallow-clone")
+                # Legacy mode with shallow clone
+                MATRIX_JSON="$MATRIX_JSON{\"service\":\"$SERVICE\",\"mode\":\"legacy\",\"strategy\":\"shallow\",\"environments\":\"stg,prod\"}"
+                ;;
+              "my-app-deep-overlay")
+                # Dynamic mode
+                MATRIX_JSON="$MATRIX_JSON{\"service\":\"$SERVICE\",\"mode\":\"dynamic\",\"strategy\":\"sparse\",\"build_path\":\"${{ env.MANIFESTS_PATH }}/before/services/[SERVICE]/clusters/[CLUSTER]/[ENV]\",\"build_values\":\"SERVICE=$SERVICE;CLUSTER=alpha,beta;ENV=stg,prod\"}"
+                ;;
+              *)
+                # Default: legacy mode with sparse strategy
+                MATRIX_JSON="$MATRIX_JSON{\"service\":\"$SERVICE\",\"mode\":\"legacy\",\"strategy\":\"sparse\",\"environments\":\"stg,prod\"}"
+                ;;
+            esac
+          done
+          MATRIX_JSON="$MATRIX_JSON]"
+          
+          echo "services_matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+          echo "Detected services matrix: $MATRIX_JSON"
 
   run-gitops-check:
-    name: Run GitOps Check (${{ matrix.service }})
+    name: Run GitOps Check (${{ matrix.config.service }})
     runs-on: ubuntu-latest
     needs: [detect-changed-services]
     if: needs.detect-changed-services.outputs.has_changes == 'true'
     strategy:
       fail-fast: false
       matrix:
-        service: ${{ fromJson(needs.detect-changed-services.outputs.services) }}
+        config: ${{ fromJson(needs.detect-changed-services.outputs.services_matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -135,30 +165,9 @@ jobs:
         run: |
           echo "pr_number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
 
-
-      - name: Determine checkout strategy based on service
-        id: determine-strategy
-        run: |
-          SERVICE="${{ matrix.service }}"
-          
-          # Services that require shallow checkout (cross-service dependencies)
-          # Add one service per line
-          cat > ./tmp.txt <<'EOF'
-          my-app-shallow-clone
-          EOF
-          
-          if grep -qx "$SERVICE" ./tmp.txt; then
-            STRATEGY="shallow"
-          else
-            STRATEGY="sparse"
-          fi
-          
-          echo "strategy=$STRATEGY" >> $GITHUB_OUTPUT
-          echo "service=$SERVICE" >> $GITHUB_OUTPUT
-          echo "Using checkout strategy: $STRATEGY for service: $SERVICE"
-
-      - name: Run policy check
-        id: run-gitops-kustomzchk
+      - name: Run policy check (legacy mode)
+        if: matrix.config.mode == 'legacy'
+        id: run-legacy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_RUN_ID: ${{ github.run_id }}
@@ -166,12 +175,34 @@ jobs:
         run: |
           ./bin/gitops-kustomzchk \
             --run-mode github \
-            --git-checkout-strategy ${{ steps.determine-strategy.outputs.strategy }} \
+            --git-checkout-strategy ${{ matrix.config.strategy }} \
             --gh-repo ${{ github.repository }} \
             --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
             --manifests-path ${{ env.MANIFESTS_PATH }}/before/services \
-            --service ${{ steps.determine-strategy.outputs.service }} \
-            --environments stg,prod \
+            --service ${{ matrix.config.service }} \
+            --environments ${{ matrix.config.environments }} \
+            --policies-path ${{ env.MANIFESTS_PATH }}/policies \
+            --templates-path ${{ env.MANIFESTS_PATH }}/templates \
+            --output-dir output \
+            --enable-export-report true \
+            --debug true
+        continue-on-error: false
+
+      - name: Run policy check (dynamic mode)
+        if: matrix.config.mode == 'dynamic'
+        id: run-dynamic
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GITHUB_COMMENT_MAX_DIFF_LENGTH: 15000
+        run: |
+          ./bin/gitops-kustomzchk \
+            --run-mode github \
+            --git-checkout-strategy ${{ matrix.config.strategy }} \
+            --gh-repo ${{ github.repository }} \
+            --gh-pr-number ${{ steps.get-pr.outputs.pr_number }} \
+            --kustomize-build-path "${{ matrix.config.build_path }}" \
+            --kustomize-build-values "${{ matrix.config.build_values }}" \
             --policies-path ${{ env.MANIFESTS_PATH }}/policies \
             --templates-path ${{ env.MANIFESTS_PATH }}/templates \
             --output-dir output \
@@ -180,15 +211,15 @@ jobs:
         continue-on-error: false
 
       - name: Upload report artifact
-        if: steps.run-gitops-kustomzchk.outcome == 'success'
+        if: steps.run-legacy.outcome == 'success' || steps.run-dynamic.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: report-${{ steps.determine-strategy.outputs.service }}
+          name: report-${{ matrix.config.service }}
           path: output/report.json
           retention-days: 3
 
       - name: Signal completion
         if: always()
         run: |
-          echo "GitOps check (${{ matrix.service }}) completed with status: ${{ job.status }}"
+          echo "GitOps check (${{ matrix.config.service }}) completed with status: ${{ job.status }}"
 
