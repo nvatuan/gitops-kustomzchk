@@ -279,17 +279,31 @@ jobs:
               fi
             done
             
-            # Check ordering - alpha should come before beta
+            # Verify ordering: alpha should come before beta, stg should come before prod
             COMMENT_SECTION=$(echo "$COMMENT" | grep "gitops-kustomzchk: dynamic-paths" -A 200)
-            ALPHA_LINE=$(echo "$COMMENT_SECTION" | grep -n "alpha" | head -1 | cut -d: -f1)
-            BETA_LINE=$(echo "$COMMENT_SECTION" | grep -n "beta" | head -1 | cut -d: -f1)
             
-            if [ -n "$ALPHA_LINE" ] && [ -n "$BETA_LINE" ] && [ "$ALPHA_LINE" -lt "$BETA_LINE" ]; then
-              echo "  ✓ Overlay ordering is correct (alpha before beta)"
-            else
-              echo "  ✗ Overlay ordering might be incorrect"
-              VALIDATION_FAILED=1
+            # Check alpha comes before beta in the manifest changes section
+            ALPHA_STG_POS=$(echo "$COMMENT_SECTION" | grep -n "\[\`my-app-deep-overlay/alpha/stg\`\]" | head -1 | cut -d: -f1)
+            BETA_STG_POS=$(echo "$COMMENT_SECTION" | grep -n "\[\`my-app-deep-overlay/beta/stg\`\]" | head -1 | cut -d: -f1)
+            
+            if [ -n "$ALPHA_STG_POS" ] && [ -n "$BETA_STG_POS" ]; then
+              if [ "$ALPHA_STG_POS" -lt "$BETA_STG_POS" ]; then
+                echo "  ✓ Overlay ordering is correct (alpha/stg before beta/stg)"
+              else
+                echo "  ✗ Overlay ordering incorrect: alpha should come before beta"
+                VALIDATION_FAILED=1
+              fi
             fi
+            
+            # Verify diffs are detected for all overlays (all should have changes)
+            for OVERLAY in "${EXPECTED_OVERLAYS[@]}"; do
+              if echo "$COMMENT_SECTION" | grep -A 30 "\[\`${OVERLAY}\`\]" | grep -q "nginx:1.22"; then
+                echo "  ✓ Diff detected for ${OVERLAY}"
+              else
+                echo "  ✗ No diff detected for ${OVERLAY}"
+                VALIDATION_FAILED=1
+              fi
+            done
           else
             echo "::error::my-app-deep-overlay (dynamic-paths) comment not found"
             VALIDATION_FAILED=1
