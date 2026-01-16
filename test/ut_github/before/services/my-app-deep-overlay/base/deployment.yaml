@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-deep
+  labels:
+    app: my-app-deep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-app-deep
+  template:
+    metadata:
+      labels:
+        app: my-app-deep
+    spec:
+      containers:
+      - name: my-app
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 250m
+            memory: 128Mi
+
