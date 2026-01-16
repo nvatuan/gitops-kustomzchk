@@ -152,6 +152,7 @@ func (r *RunnerBase) buildManifestsLegacy(ctx context.Context, beforePath, after
 	logger.Info("BuildManifests: done.")
 	return &models.BuildManifestResult{
 		EnvManifestBuild: results,
+		OverlayKeys:      envs, // Preserve the order from --environments flag
 	}, nil
 }
 
@@ -163,6 +164,7 @@ func (r *RunnerBase) buildManifestsDynamic(ctx context.Context, beforeRoot, afte
 	}
 
 	results := make(map[string]models.BuildEnvManifestResult)
+	overlayKeys := make([]string, 0, len(pathCombos)) // Preserve order
 
 	for _, combo := range pathCombos {
 		comboCtx, comboSpan := trace.StartSpan(ctx, fmt.Sprintf("BuildManifests.%s", combo.OverlayKey))
@@ -182,6 +184,7 @@ func (r *RunnerBase) buildManifestsDynamic(ctx context.Context, beforeRoot, afte
 					Skipped:       true,
 					SkipReason:    "overlay not found in before path",
 				}
+				overlayKeys = append(overlayKeys, combo.OverlayKey) // Preserve order even for skipped
 				comboSpan.End()
 				continue
 			}
@@ -201,6 +204,7 @@ func (r *RunnerBase) buildManifestsDynamic(ctx context.Context, beforeRoot, afte
 					Skipped:       true,
 					SkipReason:    "overlay not found in after path",
 				}
+				overlayKeys = append(overlayKeys, combo.OverlayKey) // Preserve order even for skipped
 				comboSpan.End()
 				continue
 			}
@@ -216,6 +220,7 @@ func (r *RunnerBase) buildManifestsDynamic(ctx context.Context, beforeRoot, afte
 			AfterManifest:  afterManifest,
 			Skipped:        false,
 		}
+		overlayKeys = append(overlayKeys, combo.OverlayKey) // Preserve order
 		logger.WithField("overlayKey", combo.OverlayKey).Debug("Built Manifest")
 
 		comboSpan.End()
@@ -224,6 +229,7 @@ func (r *RunnerBase) buildManifestsDynamic(ctx context.Context, beforeRoot, afte
 	logger.Info("BuildManifests: done.")
 	return &models.BuildManifestResult{
 		EnvManifestBuild: results,
+		OverlayKeys:      overlayKeys, // Preserve the order from path combinations
 	}, nil
 }
 

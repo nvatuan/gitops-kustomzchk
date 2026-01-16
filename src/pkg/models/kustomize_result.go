@@ -5,6 +5,10 @@ type BuildManifestResult struct {
 	// For legacy mode: key = environment name (e.g., "stg", "prod")
 	// For dynamic mode: key = overlay key (e.g., "alpha/stg", "my-app/alpha/stg")
 	EnvManifestBuild map[string]BuildEnvManifestResult
+
+	// OverlayKeys preserves the ordered list of overlay keys
+	// This maintains the order specified in --kustomize-build-values or --environments
+	OverlayKeys []string
 }
 
 type BuildEnvManifestResult struct {

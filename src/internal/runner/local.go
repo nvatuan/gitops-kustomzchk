@@ -133,9 +133,11 @@ func (r *RunnerLocal) buildManifestsLocalDynamic(ctx context.Context) (*models.B
 	}
 
 	results := make(map[string]models.BuildEnvManifestResult)
+	overlayKeys := make([]string, 0, len(beforeCombos)) // Preserve order
 
 	for _, beforeCombo := range beforeCombos {
 		overlayKey := beforeCombo.OverlayKey
+		overlayKeys = append(overlayKeys, overlayKey) // Preserve order
 		comboCtx, comboSpan := trace.StartSpan(ctx, fmt.Sprintf("BuildManifests.%s", overlayKey))
 
 		afterPath, exists := afterPathMap[overlayKey]
@@ -205,6 +207,7 @@ func (r *RunnerLocal) buildManifestsLocalDynamic(ctx context.Context) (*models.B
 	logger.Info("BuildManifestsLocalDynamic: done.")
 	return &models.BuildManifestResult{
 		EnvManifestBuild: results,
+		OverlayKeys:      overlayKeys, // Preserve the order
 	}, nil
 }
 
@@ -226,13 +229,9 @@ func (r *RunnerLocal) buildReportData(
 		// Local dynamic mode with separate before/after paths
 		reportData.KustomizeBuildValues = r.Options.KustomizeBuildValues
 
-		// Extract overlay keys from results
-		overlayKeys := make([]string, 0, len(rs.EnvManifestBuild))
-		for key := range rs.EnvManifestBuild {
-			overlayKeys = append(overlayKeys, key)
-		}
-		reportData.OverlayKeys = overlayKeys
-		reportData.Environments = overlayKeys // For backward compat in templates
+		// Use the ordered OverlayKeys from BuildManifestResult to preserve ordering
+		reportData.OverlayKeys = rs.OverlayKeys
+		reportData.Environments = rs.OverlayKeys // For backward compat in templates
 
 		// Add parsed build values (use BeforePathBuilder or AfterPathBuilder)
 		if r.Options.BeforePathBuilder != nil {
@@ -245,13 +244,9 @@ func (r *RunnerLocal) buildReportData(
 		reportData.KustomizeBuildPath = r.Options.KustomizeBuildPath
 		reportData.KustomizeBuildValues = r.Options.KustomizeBuildValues
 
-		// Extract overlay keys from results
-		overlayKeys := make([]string, 0, len(rs.EnvManifestBuild))
-		for key := range rs.EnvManifestBuild {
-			overlayKeys = append(overlayKeys, key)
-		}
-		reportData.OverlayKeys = overlayKeys
-		reportData.Environments = overlayKeys // For backward compat in templates
+		// Use the ordered OverlayKeys from BuildManifestResult to preserve ordering
+		reportData.OverlayKeys = rs.OverlayKeys
+		reportData.Environments = rs.OverlayKeys // For backward compat in templates
 
 		// Add parsed build values if PathBuilder is available
 		if r.Options.PathBuilder != nil {
