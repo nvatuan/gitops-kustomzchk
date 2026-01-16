@@ -1,4 +1,4 @@
-# 🔍 GitOps Policy Check: {{.Service}}
+# 🔍 GitOps Policy Check: {{index .ParsedKustomizeBuildValues "SERVICE" 0}}
 
 | Timestamp | Base | Head | Environments |
 -|-|-|-
