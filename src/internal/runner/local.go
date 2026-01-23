@@ -132,63 +132,81 @@ func (r *RunnerLocal) buildManifestsLocalDynamic(ctx context.Context) (*models.B
 		afterPathMap[combo.OverlayKey] = combo.Path
 	}
 
-	results := make(map[string]models.BuildEnvManifestResult)
-	overlayKeys := make([]string, 0, len(beforeCombos)) // Preserve order
+	// Create a map of before paths by overlay key for quick lookup
+	beforePathMap := make(map[string]string)
+	for _, combo := range beforeCombos {
+		beforePathMap[combo.OverlayKey] = combo.Path
+	}
 
+	// Collect all unique overlay keys from both before and after
+	allOverlayKeys := make(map[string]bool)
+	for _, combo := range beforeCombos {
+		allOverlayKeys[combo.OverlayKey] = true
+	}
+	for _, combo := range afterCombos {
+		allOverlayKeys[combo.OverlayKey] = true
+	}
+
+	results := make(map[string]models.BuildEnvManifestResult)
+	overlayKeys := make([]string, 0, len(allOverlayKeys)) // Preserve order
+
+	// Build a consistent order - use beforeCombos order first, then add any after-only keys
 	for _, beforeCombo := range beforeCombos {
-		overlayKey := beforeCombo.OverlayKey
-		overlayKeys = append(overlayKeys, overlayKey) // Preserve order
+		overlayKeys = append(overlayKeys, beforeCombo.OverlayKey)
+	}
+	for _, afterCombo := range afterCombos {
+		if _, exists := beforePathMap[afterCombo.OverlayKey]; !exists {
+			overlayKeys = append(overlayKeys, afterCombo.OverlayKey)
+		}
+	}
+
+	for _, overlayKey := range overlayKeys {
 		comboCtx, comboSpan := trace.StartSpan(ctx, fmt.Sprintf("BuildManifests.%s", overlayKey))
 
-		afterPath, exists := afterPathMap[overlayKey]
-		if !exists {
-			logger.WithField("overlayKey", overlayKey).Warn("No matching after path for overlay key, skipping")
+		beforePath := beforePathMap[overlayKey]
+		afterPath := afterPathMap[overlayKey]
+
+		// Build before manifest
+		logger.WithField("overlayKey", overlayKey).WithField("beforePath", beforePath).Info("Building before manifest...")
+		beforeManifest, beforeErr := r.Builder.BuildAtFullPath(comboCtx, beforePath)
+		beforeNotFound := beforeErr != nil && errors.Is(beforeErr, kustomize.ErrOverlayNotFound)
+		if beforeErr != nil && !beforeNotFound {
+			comboSpan.End()
+			return nil, beforeErr
+		}
+
+		// Build after manifest
+		logger.WithField("overlayKey", overlayKey).WithField("afterPath", afterPath).Info("Building after manifest...")
+		afterManifest, afterErr := r.Builder.BuildAtFullPath(comboCtx, afterPath)
+		afterNotFound := afterErr != nil && errors.Is(afterErr, kustomize.ErrOverlayNotFound)
+		if afterErr != nil && !afterNotFound {
+			comboSpan.End()
+			return nil, afterErr
+		}
+
+		// Handle different scenarios
+		if beforeNotFound && afterNotFound {
+			// Both not found: skip this overlay entirely
+			logger.WithField("overlayKey", overlayKey).Warn("Overlay not found in both before and after paths, marking as skipped")
 			results[overlayKey] = models.BuildEnvManifestResult{
-				OverlayKey:  overlayKey,
-				Environment: overlayKey,
-				Skipped:     true,
-				SkipReason:  "no matching after path",
+				OverlayKey:    overlayKey,
+				Environment:   overlayKey,
+				FullBuildPath: afterPath,
+				Skipped:       true,
+				SkipReason:    "overlay not found in both before and after paths",
 			}
 			comboSpan.End()
 			continue
 		}
 
-		logger.WithField("overlayKey", overlayKey).WithField("beforePath", beforeCombo.Path).Info("Building before manifest...")
-		beforeManifest, err := r.Builder.BuildAtFullPath(comboCtx, beforeCombo.Path)
-		if err != nil {
-			if errors.Is(err, kustomize.ErrOverlayNotFound) {
-				logger.WithField("overlayKey", overlayKey).Warn("Overlay not found for before path, marking as skipped")
-				results[overlayKey] = models.BuildEnvManifestResult{
-					OverlayKey:    overlayKey,
-					Environment:   overlayKey,
-					FullBuildPath: beforeCombo.Path,
-					Skipped:       true,
-					SkipReason:    "overlay not found in before path",
-				}
-				comboSpan.End()
-				continue
-			}
-			comboSpan.End()
-			return nil, err
+		// At least one side exists, proceed with build result
+		if beforeNotFound {
+			logger.WithField("overlayKey", overlayKey).Info("Overlay not found in before path, treating as empty (new overlay)")
+			beforeManifest = []byte{} // Treat as empty manifest
 		}
-
-		logger.WithField("overlayKey", overlayKey).WithField("afterPath", afterPath).Info("Building after manifest...")
-		afterManifest, err := r.Builder.BuildAtFullPath(comboCtx, afterPath)
-		if err != nil {
-			if errors.Is(err, kustomize.ErrOverlayNotFound) {
-				logger.WithField("overlayKey", overlayKey).Warn("Overlay not found for after path, marking as skipped")
-				results[overlayKey] = models.BuildEnvManifestResult{
-					OverlayKey:    overlayKey,
-					Environment:   overlayKey,
-					FullBuildPath: afterPath,
-					Skipped:       true,
-					SkipReason:    "overlay not found in after path",
-				}
-				comboSpan.End()
-				continue
-			}
-			comboSpan.End()
-			return nil, err
+		if afterNotFound {
+			logger.WithField("overlayKey", overlayKey).Info("Overlay not found in after path, treating as empty (deletion)")
+			afterManifest = []byte{} // Treat as empty manifest
 		}
 
 		results[overlayKey] = models.BuildEnvManifestResult{

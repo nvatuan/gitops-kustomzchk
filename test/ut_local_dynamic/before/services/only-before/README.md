@@ -1,0 +1,1 @@
+This test only as `after` manifest, and it's used to confirm behavior of only after
