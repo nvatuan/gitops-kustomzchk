@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-only-after
+  labels:
+    app: my-app-only-after
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-app-only-after
+  template:
+    metadata:
+      labels:
+        app: my-app-only-after
+    spec:
+      containers:
+      - name: my-app-only-after
+        image: nginx:1.22
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+
