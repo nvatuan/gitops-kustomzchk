@@ -166,7 +166,9 @@ func (r *RunnerGitHub) DiffManifests(result *models.BuildManifestResult) (map[st
 			if serviceIdentifier == "" {
 				serviceIdentifier = "dynamic"
 			}
-			filename := fmt.Sprintf("diff-pr%d-%s-%s.txt", r.options.GhPrNumber, env, serviceIdentifier)
+
+			uncleanFileName := fmt.Sprintf("diff-pr%d-%s-%s.txt", r.options.GhPrNumber, env, serviceIdentifier)
+			filename := strings.ReplaceAll(uncleanFileName, "/", "-")
 
 			// Save diff content to file
 			outputDir := r.Options.OutputDir
